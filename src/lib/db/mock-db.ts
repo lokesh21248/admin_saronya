@@ -17,6 +17,7 @@ import {
   SupportTicket,
   AuditLog,
   NotificationRecord,
+  PromotionalBanner,
 } from '@/types/database';
 
 class SarvonayaDataStore {
@@ -837,6 +838,57 @@ class SarvonayaDataStore {
       failed_count: 0,
       sent_at: new Date(Date.now() - 24 * 86400000).toISOString(),
       created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+    },
+  ];
+
+  public banners: PromotionalBanner[] = [
+    {
+      id: 'ban-10000000-0000-0000-0000-000000000001',
+      title: 'Unlock Unlimited Learning',
+      badge_text: 'ALL-ACCESS PASS',
+      callout_text: 'Save 45% This Month',
+      description: 'Get full access to all 500+ premium courses, live mentor doubt clearing, and verified certificates.',
+      cta_text: 'Explore All-Access Passes',
+      cta_url: '/subscriptions',
+      background_color: '#0B3473',
+      text_color: '#FFFFFF',
+      image_url: '',
+      display_order: 1,
+      is_active: true,
+      created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'ban-10000000-0000-0000-0000-000000000002',
+      title: 'Next.js 15 & Cloud System Architecture',
+      badge_text: 'NEW MASTERCLASS',
+      callout_text: 'Enroll Now',
+      description: 'Master enterprise full-stack web engineering, Turbopack, PostgreSQL RLS, and Kubernetes microservices.',
+      cta_text: 'View Curriculum',
+      cta_url: '/courses',
+      background_color: '#07224D',
+      text_color: '#FFFFFF',
+      image_url: '',
+      display_order: 2,
+      is_active: true,
+      created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      id: 'ban-10000000-0000-0000-0000-000000000003',
+      title: 'GATE & Technical Campus Placement 2026',
+      badge_text: 'CAMPUS READINESS',
+      callout_text: 'Free Mock Quizzes',
+      description: 'Comprehensive engineering discipline practice exams, DSA coding challenges, and mock interview assessments.',
+      cta_text: 'Start Assessment',
+      cta_url: '/assessments',
+      background_color: '#091E42',
+      text_color: '#FFFFFF',
+      image_url: '',
+      display_order: 3,
+      is_active: false,
+      created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+      updated_at: new Date().toISOString(),
     },
   ];
 

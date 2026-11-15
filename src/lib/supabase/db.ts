@@ -15,6 +15,7 @@ import {
   SupportTicket,
   AuditLog,
   PlatformSetting,
+  PromotionalBanner,
 } from '@/types/database';
 
 // Helper getters for mock profiles
@@ -1016,6 +1017,123 @@ export const supabaseDb = {
         Object.assign(mockDb.platformSettings[key as keyof typeof mockDb.platformSettings], value);
       }
       return true;
+    },
+  },
+
+  // 13. PROMOTIONAL BANNERS (FOR CUSTOMER WEBSITE)
+  banners: {
+    async list(activeOnly: boolean = false): Promise<PromotionalBanner[]> {
+      try {
+        const client = getSupabaseServerClient();
+        let query = client.from('promotional_banners').select('*').order('display_order', { ascending: true });
+        if (activeOnly) {
+          query = query.eq('is_active', true);
+        }
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+          return data as PromotionalBanner[];
+        }
+      } catch (err) {
+        console.warn('Supabase banners list warning:', err);
+      }
+      const list = mockDb.banners || [];
+      return activeOnly ? list.filter((b) => b.is_active) : list;
+    },
+
+    async getById(id: string): Promise<PromotionalBanner | null> {
+      try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client.from('promotional_banners').select('*').eq('id', id).maybeSingle();
+        if (!error && data) {
+          return data as PromotionalBanner;
+        }
+      } catch (err) {
+        console.warn('Supabase banner getById warning:', err);
+      }
+      return mockDb.banners.find((b) => b.id === id) || null;
+    },
+
+    async create(input: Partial<PromotionalBanner>): Promise<PromotionalBanner> {
+      const now = new Date().toISOString();
+      const newBanner: PromotionalBanner = {
+        id: `ban-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`,
+        title: input.title || 'Special Promotion',
+        badge_text: input.badge_text || '',
+        callout_text: input.callout_text || '',
+        description: input.description || '',
+        cta_text: input.cta_text || 'Learn More',
+        cta_url: input.cta_url || '/courses',
+        background_color: input.background_color || '#0B3473',
+        text_color: input.text_color || '#FFFFFF',
+        image_url: input.image_url || '',
+        display_order: Number(input.display_order) || (mockDb.banners.length + 1),
+        is_active: input.is_active !== false,
+        created_at: now,
+        updated_at: now,
+      };
+
+      try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+          .from('promotional_banners')
+          .insert({
+            title: newBanner.title,
+            badge_text: newBanner.badge_text,
+            callout_text: newBanner.callout_text,
+            description: newBanner.description,
+            cta_text: newBanner.cta_text,
+            cta_url: newBanner.cta_url,
+            background_color: newBanner.background_color,
+            text_color: newBanner.text_color,
+            image_url: newBanner.image_url,
+            display_order: newBanner.display_order,
+            is_active: newBanner.is_active,
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          newBanner.id = data.id;
+        }
+      } catch (err) {
+        console.warn('Supabase banner create warning:', err);
+      }
+
+      mockDb.banners.push(newBanner);
+      return newBanner;
+    },
+
+    async update(id: string, updates: Partial<PromotionalBanner>): Promise<PromotionalBanner | null> {
+      const now = new Date().toISOString();
+      try {
+        const client = getSupabaseServerClient();
+        await client
+          .from('promotional_banners')
+          .update({ ...updates, updated_at: now })
+          .eq('id', id);
+      } catch (err) {
+        console.warn('Supabase banner update warning:', err);
+      }
+
+      const idx = mockDb.banners.findIndex((b) => b.id === id);
+      if (idx !== -1) {
+        mockDb.banners[idx] = { ...mockDb.banners[idx], ...updates, updated_at: now };
+        return mockDb.banners[idx];
+      }
+      return null;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      try {
+        const client = getSupabaseServerClient();
+        await client.from('promotional_banners').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase banner delete warning:', err);
+      }
+
+      const initialLen = mockDb.banners.length;
+      mockDb.banners = mockDb.banners.filter((b) => b.id !== id);
+      return mockDb.banners.length < initialLen;
     },
   },
 };

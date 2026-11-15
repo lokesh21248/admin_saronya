@@ -395,3 +395,22 @@ export interface NotificationRecord {
   created_at: string;
 }
 
+export interface PromotionalBanner {
+  id: string;
+  title: string;
+  badge_text?: string;
+  callout_text?: string;
+  description?: string;
+  cta_text?: string;
+  cta_url?: string;
+  background_color?: string;
+  text_color?: string;
+  image_url?: string;
+  display_order: number;
+  is_active: boolean;
+  start_date?: string;
+  end_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+

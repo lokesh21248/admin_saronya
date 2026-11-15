@@ -26,6 +26,7 @@ import {
   ChevronRight,
   ShieldCheck,
   BookMarked,
+  Sparkles,
   X,
 } from 'lucide-react';
 import { useAdminUI } from './admin-context';
@@ -77,6 +78,7 @@ const navGroups: NavGroup[] = [
       { title: 'Payments & Revenue', href: '/admin/payments', icon: CreditCard },
       { title: 'Subscriptions', href: '/admin/subscriptions', icon: Repeat },
       { title: 'Coupons & Discounts', href: '/admin/coupons', icon: BadgePercent },
+      { title: 'Website Banners', href: '/admin/banners', icon: Sparkles },
     ],
   },
   {
