@@ -89,6 +89,10 @@ export default function CourseCreationWizardPage() {
       setSaving(true);
       const payload = {
         ...formData,
+        video: formData.initial_lesson_video_asset_id ? {
+          mux_asset_id: formData.initial_lesson_video_asset_id,
+          mux_playback_id: formData.preview_mux_playback_id,
+        } : undefined,
         status: publishImmediately ? 'published' : 'draft',
       };
 

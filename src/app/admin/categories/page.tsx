@@ -138,10 +138,7 @@ export default function CategoriesManagementPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-6 py-3.5">Order</th>
-                  <th className="px-6 py-3.5">Category Name</th>
-                  <th className="px-6 py-3.5">Slug</th>
-                  <th className="px-6 py-3.5">Description</th>
+                  <th className="px-6 py-3.5">Category</th>
                   <th className="px-4 py-3.5">Courses</th>
                   <th className="px-4 py-3.5">Status</th>
                   <th className="px-6 py-3.5 text-right">Actions</th>
@@ -150,29 +147,32 @@ export default function CategoriesManagementPage() {
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-12 text-slate-400">
+                    <td colSpan={4} className="text-center py-12 text-slate-400">
                       Loading categories...
                     </td>
                   </tr>
                 ) : (
                   categories.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                        #{c.display_order}
-                      </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-md bg-blue-50 text-[#0B3473] flex items-center justify-center">
-                            <FolderTree className="h-3.5 w-3.5" />
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#0B3473] flex items-center justify-center shrink-0">
+                            <FolderTree className="h-4 w-4" />
                           </div>
-                          <span className="font-bold text-slate-900">{c.name}</span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900">{c.name}</span>
+                              <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {c.slug}
+                              </span>
+                            </div>
+                            {c.description && (
+                              <p className="text-[11px] text-slate-500 truncate max-w-md mt-0.5">
+                                {c.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-500">
-                        {c.slug}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-500 max-w-xs truncate">
-                        {c.description || 'No description'}
                       </td>
                       <td className="px-4 py-4 text-xs font-semibold text-slate-700">
                         {c.courses_count || 0} Courses
@@ -186,10 +186,10 @@ export default function CategoriesManagementPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleStatus(c)}
-                            className={c.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}
+                            className={`h-8 px-2 ${c.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                            title={c.is_active ? 'Deactivate Category' : 'Activate Category'}
                           >
-                            <Power className="h-3.5 w-3.5 mr-1" />
-                            {c.is_active ? 'Deactivate' : 'Activate'}
+                            <Power className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
