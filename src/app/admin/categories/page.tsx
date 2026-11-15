@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { FileUpload } from '@/components/ui/file-upload';
 import {
   FolderTree,
   Plus,
@@ -24,6 +25,7 @@ export default function CategoriesManagementPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('Code2');
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function loadCategories() {
@@ -53,12 +55,13 @@ export default function CategoriesManagementPage() {
       const res = await fetch('/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, icon }),
+        body: JSON.stringify({ name, description, icon, thumbnail_url: thumbnailUrl }),
       });
       if (res.ok) {
         setAddModalOpen(false);
         setName('');
         setDescription('');
+        setThumbnailUrl('');
         loadCategories();
       }
     } catch (err) {
@@ -196,6 +199,16 @@ export default function CategoriesManagementPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 className="mt-1 text-xs"
                 rows={3}
+              />
+            </div>
+            <div>
+              <FileUpload
+                accept="image/*"
+                folder="categories"
+                label="Category Badge / Thumbnail Image"
+                description="Upload custom icon or visual banner for this engineering domain"
+                value={thumbnailUrl}
+                onChange={setThumbnailUrl}
               />
             </div>
             <DialogFooter className="pt-2">

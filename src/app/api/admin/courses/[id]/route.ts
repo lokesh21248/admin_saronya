@@ -1,7 +1,8 @@
+export const dynamic = 'force-dynamic';
 // SARVONAYA Individual Course API (GET, PATCH, DELETE)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET(
   request: Request,
@@ -14,28 +15,15 @@ export async function GET(
     }
 
     const { id } = await params;
-    const course = mockDb.courses.find((c) => c.id === id);
+    const course = await supabaseDb.courses.getById(id);
 
     if (!course) {
       return NextResponse.json({ success: false, error: 'Course not found' }, { status: 404 });
     }
 
-    const sections = mockDb.sections
-      .filter((s) => s.course_id === id)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((sec) => {
-        const lessons = mockDb.lessons
-          .filter((l) => l.section_id === sec.id)
-          .sort((a, b) => a.sort_order - b.sort_order);
-        return { ...sec, lessons };
-      });
-
     return NextResponse.json({
       success: true,
-      data: {
-        ...course,
-        sections,
-      },
+      data: course,
     });
   } catch (error) {
     console.error('Course GET Error:', error);
@@ -55,33 +43,29 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const course = mockDb.courses.find((c) => c.id === id);
 
-    if (!course) {
+    const updated = await supabaseDb.courses.update(id, body);
+    if (!updated) {
       return NextResponse.json({ success: false, error: 'Course not found' }, { status: 404 });
     }
 
-    Object.assign(course, body, { updated_at: new Date().toISOString() });
-
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: 'COURSE_METADATA_UPDATED',
-      entity_type: 'course',
-      entity_id: course.id,
-      details: { title: course.title },
-      created_at: new Date().toISOString(),
+      target_type: 'course',
+      target_id: updated.id,
+      target_name: updated.title,
+      details: { title: updated.title },
     });
 
     return NextResponse.json({
       success: true,
       message: 'Course updated successfully',
-      data: course,
+      data: updated,
     });
   } catch (error) {
     console.error('Course PATCH Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

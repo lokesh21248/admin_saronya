@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Revoke Enrollment Access API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function POST(request: Request) {
   try {
@@ -20,26 +20,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const enrollment = mockDb.enrollments.find((e) => e.id === enrollmentId);
-    if (!enrollment) {
-      return NextResponse.json({ success: false, error: 'Enrollment record not found' }, { status: 404 });
-    }
+    await supabaseDb.enrollments.revoke(enrollmentId);
 
-    enrollment.status = 'revoked';
-    enrollment.revoked_at = new Date().toISOString();
-    enrollment.revoke_reason = reason;
-
-    // Record audit event
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: 'COURSE_ACCESS_REVOKED',
-      entity_type: 'enrollment',
-      entity_id: enrollmentId,
-      details: { enrollmentId, studentId: enrollment.student_id, courseId: enrollment.course_id, reason },
-      ip_address: '127.0.0.1',
-      created_at: new Date().toISOString(),
+      target_type: 'enrollment',
+      target_id: enrollmentId,
+      details: { enrollmentId, reason },
     });
 
     return NextResponse.json({
@@ -51,4 +40,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Courses API (GET & POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
+import { createInitialCurriculum } from '@/lib/db/initial-curriculum';
+import { pickVideoPatch } from '@/lib/mux/lesson-video';
 
 export async function GET(request: Request) {
   try {
@@ -16,7 +18,7 @@ export async function GET(request: Request) {
     const status = searchParams.get('status') || '';
     const categoryId = searchParams.get('categoryId') || '';
 
-    let courses = [...mockDb.courses];
+    let courses = await supabaseDb.courses.list();
 
     if (search) {
       courses = courses.filter((c) => c.title.toLowerCase().includes(search));
@@ -28,16 +30,11 @@ export async function GET(request: Request) {
       courses = courses.filter((c) => c.category_id === categoryId);
     }
 
-    // Enrich courses with category name & instructor
-    const enriched = courses.map((c) => {
-      const cat = mockDb.categories.find((cat) => cat.id === c.category_id);
-      const instructor = mockDb.profiles.find((p) => p.id === c.primary_instructor_id);
-      return {
-        ...c,
-        categoryName: cat?.name || 'General Engineering',
-        instructorName: instructor?.full_name || 'Prof. Faculty',
-      };
-    });
+    const enriched = courses.map((c) => ({
+      ...c,
+      categoryName: c.category?.name || 'General Engineering',
+      instructorName: c.primary_instructor?.full_name || 'Prof. Faculty',
+    }));
 
     return NextResponse.json({
       success: true,
@@ -58,76 +55,38 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const {
-      title,
-      slug,
-      short_description,
-      full_description,
-      thumbnail_url,
-      category_id,
-      primary_instructor_id,
-      difficulty_level,
-      duration_hours,
-      language,
-      price,
-      discount_price,
-      is_subscription_eligible,
-      status,
-    } = body;
-
-    if (!title) {
+    if (!body.title) {
       return NextResponse.json({ success: false, error: 'Course title is required' }, { status: 400 });
     }
 
-    const generatedSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const newCourse = await supabaseDb.courses.create(body);
 
-    const newCourse = {
-      id: `course-${Date.now()}`,
-      title,
-      slug: generatedSlug,
-      short_description: short_description || '',
-      full_description: full_description || '',
-      thumbnail_url: thumbnail_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80',
-      category_id: category_id || 'c1',
-      primary_instructor_id: primary_instructor_id || 'u2',
-      difficulty_level: difficulty_level || 'all_levels',
-      duration_hours: Number(duration_hours) || 20,
-      language: language || 'English',
-      price: Number(price) || 2999,
-      discount_price: discount_price ? Number(discount_price) : undefined,
-      is_subscription_eligible: is_subscription_eligible !== undefined ? is_subscription_eligible : true,
-      access_duration_days: 365,
-      status: status || 'draft',
-      created_by: adminUser.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      sections_count: 0,
-      lessons_count: 0,
-      enrollments_count: 0,
-    };
+    // The wizard collects a first module + lesson (and optionally an uploaded Mux video for it).
+    const curriculum = await createInitialCurriculum({
+      courseId: newCourse.id,
+      sectionTitle: body.initial_section_title,
+      lessonTitle: body.initial_lesson_title,
+      video: pickVideoPatch(body.video),
+    });
 
-    mockDb.courses.unshift(newCourse);
-
-    // Audit log
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: 'COURSE_CREATED',
-      entity_type: 'course',
-      entity_id: newCourse.id,
-      details: { title: newCourse.title, status: newCourse.status },
-      created_at: new Date().toISOString(),
+      target_type: 'course',
+      target_id: newCourse.id,
+      target_name: newCourse.title,
+      details: { status: newCourse.status, lesson_id: curriculum?.lesson.id, has_video: Boolean(curriculum?.lesson.mux_asset_id) },
     });
 
     return NextResponse.json({
       success: true,
       message: 'Course created successfully',
       data: newCourse,
+      curriculum: curriculum && { sectionId: curriculum.section.id, lessonId: curriculum.lesson.id },
     });
   } catch (error) {
     console.error('Courses POST Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

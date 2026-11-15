@@ -1,7 +1,8 @@
+export const dynamic = 'force-dynamic';
 // SARVONAYA Academic Branch Edit & Toggle Status (PATCH)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function PATCH(
   request: Request,
@@ -15,40 +16,31 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const branch = mockDb.branches.find((b) => b.id === id);
 
-    if (!branch) {
+    const updated = await supabaseDb.branches.update(id, body);
+    if (!updated) {
       return NextResponse.json({ success: false, error: 'Branch not found' }, { status: 404 });
     }
 
-    if (body.name !== undefined) branch.name = body.name.trim();
-    if (body.description !== undefined) branch.description = body.description.trim();
     if (body.is_active !== undefined) {
-      branch.is_active = Boolean(body.is_active);
-
-      // Audit log for state changes
-      mockDb.auditLogs.unshift({
-        id: `log-${Date.now()}`,
+      await supabaseDb.auditLogs.log({
         actor_id: adminUser.id,
-        actor_email: adminUser.email,
-        action: branch.is_active ? 'BRANCH_ACTIVATED' : 'BRANCH_DEACTIVATED',
-        entity_type: 'academic_branch',
-        entity_id: branch.id,
-        details: { code: branch.code, is_active: branch.is_active },
-        created_at: new Date().toISOString(),
+        actor_name: adminUser.name,
+        action: updated.is_active ? 'BRANCH_ACTIVATED' : 'BRANCH_DEACTIVATED',
+        target_type: 'academic_branch',
+        target_id: updated.id,
+        target_name: updated.name,
+        details: { code: updated.code, is_active: updated.is_active },
       });
     }
-
-    branch.updated_at = new Date().toISOString();
 
     return NextResponse.json({
       success: true,
       message: 'Branch updated successfully',
-      data: branch,
+      data: updated,
     });
   } catch (error) {
     console.error('Branch PATCH Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

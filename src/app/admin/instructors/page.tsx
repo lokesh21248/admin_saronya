@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { FileUpload } from '@/components/ui/file-upload';
 import {
   UserCheck,
   Plus,
@@ -26,6 +27,7 @@ export default function InstructorsManagementPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function loadInstructors() {
@@ -54,7 +56,7 @@ export default function InstructorsManagementPage() {
       const res = await fetch('/api/admin/instructors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: fullName, email, phone, bio }),
+        body: JSON.stringify({ full_name: fullName, email, phone, bio, avatar_url: avatarUrl }),
       });
       if (res.ok) {
         setInviteModalOpen(false);
@@ -62,6 +64,7 @@ export default function InstructorsManagementPage() {
         setEmail('');
         setPhone('');
         setBio('');
+        setAvatarUrl('');
         loadInstructors();
       }
     } catch (err) {
@@ -104,8 +107,12 @@ export default function InstructorsManagementPage() {
               <CardContent className="p-6 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-[#0B3473] text-white flex items-center justify-center font-bold text-base">
-                      {inst.full_name.charAt(0)}
+                    <div className="h-12 w-12 rounded-full overflow-hidden bg-[#0B3473] text-white flex items-center justify-center font-bold text-base border border-slate-200 shrink-0">
+                      {inst.avatar_url ? (
+                        <img src={inst.avatar_url} alt={inst.full_name} className="h-full w-full object-cover" />
+                      ) : (
+                        inst.full_name.charAt(0)
+                      )}
                     </div>
                     <div>
                       <h3 className="font-bold text-sm text-slate-900">{inst.full_name}</h3>
@@ -180,6 +187,16 @@ export default function InstructorsManagementPage() {
                 onChange={(e) => setBio(e.target.value)}
                 rows={3}
                 className="mt-1 text-xs"
+              />
+            </div>
+            <div>
+              <FileUpload
+                accept="image/*"
+                folder="instructors"
+                label="Profile Avatar Photo"
+                description="Upload square photo for faculty profile and student course view"
+                value={avatarUrl}
+                onChange={setAvatarUrl}
               />
             </div>
             <DialogFooter className="pt-2">

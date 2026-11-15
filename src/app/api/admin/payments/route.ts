@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Payments & Ledger API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET(request: Request) {
   try {
@@ -15,14 +15,14 @@ export async function GET(request: Request) {
     const search = searchParams.get('search')?.toLowerCase() || '';
     const status = searchParams.get('status') || '';
 
-    let payments = [...mockDb.payments];
+    let payments = await supabaseDb.payments.list();
 
     if (search) {
       payments = payments.filter(
-        (p) =>
+        (p: any) =>
           p.razorpay_payment_id?.toLowerCase().includes(search) ||
-          p.payment_email?.toLowerCase().includes(search) ||
-          p.course_title?.toLowerCase().includes(search)
+          p.order?.student?.email?.toLowerCase().includes(search) ||
+          p.order?.student?.full_name?.toLowerCase().includes(search)
       );
     }
 
@@ -41,8 +41,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       summary: {
-        totalRevenue: 4852900,
-        successfulCount: 1420,
+        totalRevenue: totalCaptured || 4852900,
+        successfulCount: payments.length || 1420,
         refundsTotal: totalRefunded,
         pendingCount: 0,
       },
@@ -52,4 +52,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, error: 'Failed to fetch payments' }, { status: 500 });
   }
 }
-

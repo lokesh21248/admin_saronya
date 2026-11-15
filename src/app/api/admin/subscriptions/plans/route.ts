@@ -2,10 +2,12 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Subscription Plans API (GET & POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
+import { supabaseDb } from '@/lib/supabase/db';
 import { mockDb } from '@/lib/db/mock-db';
 
 export async function GET() {
-  return NextResponse.json({ success: true, data: mockDb.subscriptionPlans });
+  const plans = await supabaseDb.subscriptions.plans();
+  return NextResponse.json({ success: true, data: plans });
 }
 
 export async function POST(request: Request) {
@@ -24,7 +26,7 @@ export async function POST(request: Request) {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
     const newPlan = {
-      id: `plan-${Date.now()}`,
+      id: `d1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
       name: name.trim(),
       slug,
       description: description || '',
@@ -42,9 +44,18 @@ export async function POST(request: Request) {
 
     mockDb.subscriptionPlans.push(newPlan);
 
+    await supabaseDb.auditLogs.log({
+      actor_id: adminUser.id,
+      actor_name: adminUser.name,
+      action: 'SUBSCRIPTION_PLAN_CREATED',
+      target_type: 'subscription_plan',
+      target_id: newPlan.id,
+      target_name: newPlan.name,
+      details: { slug, price },
+    });
+
     return NextResponse.json({ success: true, data: newPlan });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to create plan' }, { status: 500 });
   }
 }
-

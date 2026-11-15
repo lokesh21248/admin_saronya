@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Academic Branches API (GET & POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET() {
   try {
@@ -11,9 +11,11 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    const branches = await supabaseDb.branches.list();
+
     return NextResponse.json({
       success: true,
-      data: mockDb.branches,
+      data: branches,
     });
   } catch (error) {
     console.error('Branches GET Error:', error);
@@ -37,39 +39,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check code collision
-    const upperCode = code.toUpperCase().trim();
-    if (mockDb.branches.some((b) => b.code === upperCode)) {
-      return NextResponse.json(
-        { success: false, error: `Branch with code '${upperCode}' already exists` },
-        { status: 409 }
-      );
-    }
+    const newBranch = await supabaseDb.branches.create({
+      code,
+      name,
+      description,
+    });
 
-    const newBranch = {
-      id: `b1000000-0000-0000-0000-${Math.random().toString(36).substring(2, 14)}`,
-      code: upperCode,
-      name: name.trim(),
-      description: description || '',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      courses_count: 0,
-      students_count: 0,
-    };
-
-    mockDb.branches.push(newBranch);
-
-    // Audit log
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: 'BRANCH_CREATED',
-      entity_type: 'academic_branch',
-      entity_id: newBranch.id,
-      details: { code: upperCode, name: newBranch.name },
-      created_at: new Date().toISOString(),
+      target_type: 'academic_branch',
+      target_id: newBranch.id,
+      target_name: newBranch.name,
+      details: { code: newBranch.code },
     });
 
     return NextResponse.json({
@@ -82,4 +65,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

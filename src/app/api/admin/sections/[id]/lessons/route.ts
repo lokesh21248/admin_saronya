@@ -15,7 +15,15 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { title, lesson_type, duration_minutes, is_preview } = body;
+    const {
+      title,
+      lesson_type,
+      duration_minutes,
+      is_preview,
+      mux_playback_id,
+      mux_asset_id,
+      resource_url,
+    } = body;
 
     if (!title) {
       return NextResponse.json({ success: false, error: 'Lesson title is required' }, { status: 400 });
@@ -34,6 +42,9 @@ export async function POST(
       duration_minutes: Number(duration_minutes) || 15,
       is_preview: Boolean(is_preview),
       is_published: true,
+      mux_playback_id: mux_playback_id || undefined,
+      mux_asset_id: mux_asset_id || undefined,
+      resource_url: resource_url || undefined,
       video_status: 'ready' as const,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

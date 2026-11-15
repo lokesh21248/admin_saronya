@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { FileUpload } from '@/components/ui/file-upload';
+import { VideoUploader } from '@/components/admin/video-uploader';
 import { formatCurrency } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -53,8 +55,10 @@ export default function CourseCreationWizardPage() {
     full_description: '',
     language: 'English',
     difficulty_level: 'intermediate',
-    thumbnail_url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80',
+    thumbnail_url: '/placeholders/course-placeholder.svg',
     preview_video_url: '',
+    preview_mux_playback_id: '',
+    initial_lesson_video_asset_id: '',
     selected_branches: ['CSE', 'AIML', 'IT'],
     category_id: 'c6',
     primary_instructor_id: 'u2',
@@ -236,27 +240,32 @@ export default function CourseCreationWizardPage() {
 
           {/* STEP 2: Promotional Media */}
           {currentStep === 2 && (
-            <div className="space-y-4 max-w-2xl">
-              <h2 className="text-lg font-bold text-slate-900">Step 2: Course Thumbnail & Media</h2>
+            <div className="space-y-6 max-w-2xl">
               <div>
-                <Label>Thumbnail Image URL</Label>
-                <Input
-                  value={formData.thumbnail_url}
-                  onChange={(e) => updateField('thumbnail_url', e.target.value)}
-                  placeholder="https://..."
-                  className="mt-1"
-                />
+                <h2 className="text-lg font-bold text-slate-900">Step 2: Course Thumbnail & Media</h2>
+                <p className="text-xs text-slate-500">
+                  Upload visual assets for your course card, banner, and public syllabus preview.
+                </p>
               </div>
-              <div className="h-44 w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 relative">
-                <img src={formData.thumbnail_url} alt="Preview" className="h-full w-full object-cover" />
-              </div>
-              <div>
-                <Label>Promotional Video URL (Mux / HLS stream)</Label>
-                <Input
-                  value={formData.preview_video_url}
-                  onChange={(e) => updateField('preview_video_url', e.target.value)}
-                  placeholder="https://stream.mux.com/..."
-                  className="mt-1"
+
+              <FileUpload
+                accept="image/*"
+                folder="thumbnails"
+                label="Course Thumbnail Image"
+                description="High-resolution banner (16:9 recommended, max 25MB) saved directly to secure storage"
+                value={formData.thumbnail_url}
+                onChange={(url) => updateField('thumbnail_url', url)}
+              />
+
+              <div className="pt-2 border-t border-slate-100">
+                <VideoUploader
+                  label="Promotional Trailer / Preview Video (Mux)"
+                  playbackId={formData.preview_mux_playback_id || ''}
+                  onVideoSelected={({ playbackId, assetId }) => {
+                    updateField('preview_mux_playback_id', playbackId);
+                    if (assetId) updateField('initial_lesson_video_asset_id', assetId);
+                    updateField('preview_video_url', `https://stream.mux.com/${playbackId}.m3u8`);
+                  }}
                 />
               </div>
             </div>
@@ -403,15 +412,32 @@ export default function CourseCreationWizardPage() {
           {/* STEP 7: Mux Video Setup */}
           {currentStep === 7 && (
             <div className="space-y-4 max-w-2xl">
-              <h2 className="text-lg font-bold text-slate-900">Step 7: Mux Direct Video Pipeline</h2>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                <p className="font-semibold text-slate-800">Direct Video Upload & Signed Playback URLs</p>
-                <p className="text-slate-600">
-                  SARVONAYA generates direct signed upload URLs from Mux so videos stream directly to Mux infrastructure without touching your application server. All paid videos use signed playback tokens.
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Step 7: Mux Direct Video Pipeline</h2>
+                <p className="text-xs text-slate-500">
+                  Upload your course preview / Lesson 1 video directly to Mux infrastructure. All student streaming uses signed tokens with watermarked enterprise playback.
                 </p>
-                <span className="inline-block mt-2 font-mono text-[10px] bg-white p-2 rounded border border-slate-200">
-                  Ready to link Mux Asset IDs during lesson editing.
-                </span>
+              </div>
+
+              <VideoUploader
+                label="Initial Lesson / Core Curriculum Video Asset"
+                playbackId={formData.preview_mux_playback_id || ''}
+                assetId={formData.initial_lesson_video_asset_id || ''}
+                onVideoSelected={({ playbackId, assetId }) => {
+                  updateField('preview_mux_playback_id', playbackId);
+                  if (assetId) updateField('initial_lesson_video_asset_id', assetId);
+                  updateField('preview_video_url', `https://stream.mux.com/${playbackId}.m3u8`);
+                }}
+              />
+
+              <div className="p-3.5 rounded-lg bg-blue-50/60 border border-blue-200 text-xs text-blue-900 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-blue-700" />
+                  Mux Enterprise Integration Active
+                </p>
+                <p className="text-[11px] text-blue-700">
+                  Videos upload directly from your browser to Mux's ingest API. When uploaded, Mux automatically creates 1080p multi-bitrate HLS renditions, waveform audio, and instant thumbnail frames.
+                </p>
               </div>
             </div>
           )}

@@ -46,7 +46,7 @@ export async function getCurrentAdminUser(): Promise<AdminUser> {
     name: 'Dr. Rajesh Sharma',
     roles: ['super_admin'],
     permissions: Object.values(ROLE_PERMISSIONS.super_admin),
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
+    avatarUrl: '/placeholders/avatar-placeholder.svg',
   };
 }
 

@@ -8,12 +8,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
+import { VideoUploader } from '@/components/admin/video-uploader';
+import { FileUpload } from '@/components/ui/file-upload';
 import {
   ArrowLeft,
   Plus,
   PlayCircle,
   FolderPlus,
   Upload,
+  Film,
+  FileText,
 } from 'lucide-react';
 
 export default function CurriculumView({ courseId }: { courseId: string }) {
@@ -28,7 +32,48 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
   const [lessonTitle, setLessonTitle] = useState('');
   const [lessonDuration, setLessonDuration] = useState('20');
   const [isPreview, setIsPreview] = useState(false);
+  const [newLessonPlaybackId, setNewLessonPlaybackId] = useState('');
+  const [newLessonAssetId, setNewLessonAssetId] = useState('');
+  const [newLessonResourceUrl, setNewLessonResourceUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Video Linking Modal for existing lesson
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedLessonForVideo, setSelectedLessonForVideo] = useState<any>(null);
+  const [tempPlaybackId, setTempPlaybackId] = useState('');
+  const [tempAssetId, setTempAssetId] = useState('');
+  const [savingVideo, setSavingVideo] = useState(false);
+
+  function openVideoModal(lesson: any) {
+    setSelectedLessonForVideo(lesson);
+    setTempPlaybackId(lesson.mux_playback_id || '');
+    setTempAssetId(lesson.mux_asset_id || '');
+    setVideoModalOpen(true);
+  }
+
+  async function handleSaveVideoToLesson() {
+    if (!selectedLessonForVideo) return;
+    try {
+      setSavingVideo(true);
+      const res = await fetch(`/api/admin/lessons/${selectedLessonForVideo.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mux_playback_id: tempPlaybackId,
+          mux_asset_id: tempAssetId,
+        }),
+      });
+      if (res.ok) {
+        setVideoModalOpen(false);
+        setSelectedLessonForVideo(null);
+        loadCourse();
+      }
+    } catch (err) {
+      console.error('Failed to link video to lesson:', err);
+    } finally {
+      setSavingVideo(false);
+    }
+  }
 
   async function loadCourse() {
     try {
@@ -84,12 +129,18 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
           duration_minutes: Number(lessonDuration),
           is_preview: isPreview,
           lesson_type: 'video',
+          mux_playback_id: newLessonPlaybackId || undefined,
+          mux_asset_id: newLessonAssetId || undefined,
+          resource_url: newLessonResourceUrl || undefined,
         }),
       });
       if (res.ok) {
         setAddLessonOpen(false);
         setLessonTitle('');
         setIsPreview(false);
+        setNewLessonPlaybackId('');
+        setNewLessonAssetId('');
+        setNewLessonResourceUrl('');
         loadCourse();
       }
     } catch (err) {
@@ -212,12 +263,15 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Link href="/admin/videos">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs text-[#0B3473]">
-                              <Upload className="h-3.5 w-3.5 mr-1" />
-                              Link Video
-                            </Button>
-                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openVideoModal(lesson)}
+                            className="h-7 text-xs text-[#0B3473] hover:bg-[#0B3473]/10"
+                          >
+                            <Film className="h-3.5 w-3.5 mr-1" />
+                            {lesson.mux_playback_id ? 'Change Video' : 'Upload Video'}
+                          </Button>
                         </div>
                       </div>
                     ))
@@ -260,7 +314,7 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
 
       {/* Add Lesson Modal */}
       <Dialog open={addLessonOpen} onOpenChange={setAddLessonOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Lesson to Section</DialogTitle>
           </DialogHeader>
@@ -290,6 +344,33 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
                 <Switch checked={isPreview} onCheckedChange={setIsPreview} />
               </div>
             </div>
+
+            {/* Direct Video Upload for this Lesson */}
+            <div className="pt-2">
+              <VideoUploader
+                label="Lesson Video Stream (Direct Upload to Mux)"
+                playbackId={newLessonPlaybackId}
+                assetId={newLessonAssetId}
+                onVideoSelected={({ playbackId, assetId, durationSeconds }) => {
+                  setNewLessonPlaybackId(playbackId);
+                  if (assetId) setNewLessonAssetId(assetId);
+                  if (durationSeconds) setLessonDuration(String(Math.ceil(durationSeconds / 60)));
+                }}
+              />
+            </div>
+
+            {/* Optional Resource Attachment */}
+            <div className="pt-2">
+              <FileUpload
+                accept=".pdf,.doc,.docx,.zip"
+                folder="curriculum-resources"
+                label="Downloadable Resource (Cheat Sheet / Notes PDF)"
+                description="Optional lecture notes or starter code archive"
+                value={newLessonResourceUrl}
+                onChange={setNewLessonResourceUrl}
+              />
+            </div>
+
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setAddLessonOpen(false)}>
                 Cancel
@@ -299,6 +380,46 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link / Upload Video to Existing Lesson Modal */}
+      <Dialog open={videoModalOpen} onOpenChange={setVideoModalOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Film className="h-5 w-5 text-[#0B3473]" />
+              <span>Upload or Link Mux Video</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-slate-600">
+              Target Lesson: <strong className="text-slate-900">{selectedLessonForVideo?.title}</strong>
+            </p>
+            <VideoUploader
+              label="Lesson Video Stream"
+              playbackId={tempPlaybackId}
+              assetId={tempAssetId}
+              lessonId={selectedLessonForVideo?.id}
+              onVideoSelected={({ playbackId, assetId }) => {
+                setTempPlaybackId(playbackId);
+                if (assetId) setTempAssetId(assetId);
+              }}
+            />
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setVideoModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#0B3473] hover:bg-[#082654]"
+                onClick={handleSaveVideoToLesson}
+                disabled={savingVideo || !tempPlaybackId}
+              >
+                {savingVideo ? 'Saving...' : 'Save Video to Lesson'}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

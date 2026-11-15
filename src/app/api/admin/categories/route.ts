@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Categories API (GET & POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET() {
   try {
@@ -11,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const categories = mockDb.categories.sort((a, b) => a.display_order - b.display_order);
+    const categories = await supabaseDb.categories.list();
 
     return NextResponse.json({
       success: true,
@@ -37,20 +37,22 @@ export async function POST(request: Request) {
 
     const generatedSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
-    const newCategory = {
-      id: `c-${Date.now()}`,
-      name: name.trim(),
+    const newCategory = await supabaseDb.categories.create({
+      name,
       slug: generatedSlug,
-      description: description || '',
-      icon: icon || 'Code2',
-      is_active: true,
-      display_order: mockDb.categories.length + 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      courses_count: 0,
-    };
+      description,
+      icon,
+    });
 
-    mockDb.categories.push(newCategory);
+    await supabaseDb.auditLogs.log({
+      actor_id: adminUser.id,
+      actor_name: adminUser.name,
+      action: 'CATEGORY_CREATED',
+      target_type: 'category',
+      target_id: newCategory.id,
+      target_name: newCategory.name,
+      details: { slug: newCategory.slug },
+    });
 
     return NextResponse.json({
       success: true,
@@ -60,4 +62,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: 'Failed to create category' }, { status: 500 });
   }
 }
-

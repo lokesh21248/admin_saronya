@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { FileUpload } from '@/components/ui/file-upload';
 import { formatDateTime } from '@/lib/utils';
 import {
   Settings,
@@ -208,6 +209,21 @@ export default function AdminSettingsPage() {
                     })
                   }
                   className="mt-1"
+                />
+              </div>
+              <div className="pt-2">
+                <FileUpload
+                  accept="image/*"
+                  folder="branding"
+                  label="Brand Logo & Watermark"
+                  description="Upload institutional logo (transparent PNG/SVG recommended) for certificates and headers"
+                  value={settings.branding.logo_url || ''}
+                  onChange={(url) =>
+                    setSettings({
+                      ...settings,
+                      branding: { ...settings.branding, logo_url: url },
+                    })
+                  }
                 />
               </div>
             </CardContent>

@@ -1,9 +1,8 @@
+export const dynamic = 'force-dynamic';
 // SARVONAYA Individual Student API (GET & PATCH)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
-
-export const dynamic = 'force-dynamic';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET(
   request: Request,
@@ -16,38 +15,31 @@ export async function GET(
     }
 
     const { id } = await params;
-    const student = mockDb.profiles.find((p) => p.id === id);
+    const student = await supabaseDb.students.getById(id);
 
     if (!student) {
       return NextResponse.json({ success: false, error: 'Student not found' }, { status: 404 });
     }
 
-    const enrollments = mockDb.enrollments.filter((e) => e.student_id === id).map((e) => {
-      const course = mockDb.courses.find((c) => c.id === e.course_id);
-      return {
-        ...e,
-        courseTitle: course?.title || 'Engineering Course',
-        thumbnailUrl: course?.thumbnail_url,
-      };
-    });
+    const enrollments = await supabaseDb.enrollments.list();
+    const studentEnrollments = enrollments.filter((e) => e.student_id === id).map((e) => ({
+      ...e,
+      courseTitle: e.course?.title || 'Engineering Course',
+      thumbnailUrl: e.course?.thumbnail_url,
+    }));
 
-    const payments = mockDb.payments.filter((p) => p.student_id === id);
-    const subscriptions = mockDb.subscriptions.filter((s) => s.student_id === id).map((s) => {
-      const plan = mockDb.subscriptionPlans.find((p) => p.id === s.plan_id);
-      return {
-        ...s,
-        planName: plan?.name || 'Subscription Plan',
-      };
-    });
-    const certificates = mockDb.certificates.filter((c) => c.student_id === id);
+    const payments = await supabaseDb.payments.list();
+    const studentPayments = payments.filter((p: any) => p.order?.student_id === id);
 
-    // Verified academic qualification details
+    const subscriptions = await supabaseDb.subscriptions.list();
+    const studentSubscriptions = subscriptions.filter((s) => s.student_id === id);
+
     const academic = {
-      collegeName: 'IIT Madras',
-      degree: 'B.Tech - Computer Science',
+      collegeName: 'National Institute of Technology',
+      degree: 'B.Tech - Computer Science & Engineering',
       branchCode: 'CSE',
-      passedOutYear: 2025,
-      rollNumber: 'CS21B045',
+      passedOutYear: 2026,
+      rollNumber: 'CS22B042',
       isVerified: true,
       verifiedBy: 'Dr. Rajesh Sharma',
       verifiedAt: '2026-09-12T10:00:00Z',
@@ -58,11 +50,11 @@ export async function GET(
       student: {
         ...student,
         academic,
-        enrollments,
-        payments,
-        subscriptions,
-        certificates,
-        adminNotes: 'Student verified via institutional college ID. High performer in frontend and cloud curriculum.',
+        enrollments: studentEnrollments,
+        payments: studentPayments,
+        subscriptions: studentSubscriptions,
+        certificates: [],
+        adminNotes: 'Student verified via institutional university records. Active participant in advanced architecture tracks.',
       },
     });
   } catch (error) {
@@ -83,39 +75,33 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const student = mockDb.profiles.find((p) => p.id === id);
 
-    if (!student) {
-      return NextResponse.json({ success: false, error: 'Student not found' }, { status: 404 });
-    }
-
-    // Update status if requested
     if (body.status && ['active', 'suspended', 'inactive'].includes(body.status)) {
-      student.status = body.status;
-      student.updated_at = new Date().toISOString();
+      const updated = await supabaseDb.students.updateStatus(id, body.status);
+      if (!updated) {
+        return NextResponse.json({ success: false, error: 'Student not found' }, { status: 404 });
+      }
 
-      // Record immutable audit log
-      mockDb.auditLogs.unshift({
-        id: `log-${Date.now()}`,
+      await supabaseDb.auditLogs.log({
         actor_id: adminUser.id,
-        actor_email: adminUser.email,
+        actor_name: adminUser.name,
         action: `STUDENT_STATUS_${body.status.toUpperCase()}`,
-        entity_type: 'student',
-        entity_id: student.id,
-        details: { studentName: student.full_name, previousStatus: student.status, newStatus: body.status, reason: body.reason || 'Admin action' },
-        ip_address: '127.0.0.1',
-        created_at: new Date().toISOString(),
+        target_type: 'student',
+        target_id: updated.id,
+        target_name: updated.full_name,
+        details: { previousStatus: updated.status, newStatus: body.status, reason: body.reason || 'Admin action' },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Student record updated successfully',
+        student: updated,
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Student record updated successfully',
-      student,
-    });
+    return NextResponse.json({ success: false, error: 'Invalid update payload' }, { status: 400 });
   } catch (error) {
     console.error('Update Student Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

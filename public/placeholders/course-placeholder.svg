@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B3473" />
+      <stop offset="100%" stop-color="#1455A0" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#navyGrad)" />
+  <circle cx="400" cy="180" r="70" fill="#F5BD24" opacity="0.15" />
+  <path d="M400 130 L450 160 L400 190 L350 160 Z" fill="#F5BD24" />
+  <path d="M365 178 L365 205 C365 220 435 220 435 205 L435 178" stroke="#F5BD24" stroke-width="6" fill="none" />
+  <rect x="250" y="270" width="300" height="32" rx="8" fill="#FFFFFF" opacity="0.9" />
+  <text x="400" y="292" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="#0B3473" text-anchor="middle" letter-spacing="2">SARVONAYA COURSE</text>
+  <text x="400" y="340" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#FFFFFF" opacity="0.7" text-anchor="middle">Engineering Masterclass Series</text>
+</svg>

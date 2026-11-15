@@ -138,8 +138,11 @@ export default function CoursesListPage() {
                 {/* Course Thumbnail Image */}
                 <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
                   <img
-                    src={course.thumbnail_url}
+                    src={course.thumbnail_url || '/placeholders/course-placeholder.svg'}
                     alt={course.title}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/placeholders/course-placeholder.svg';
+                    }}
                     className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute top-3 left-3">

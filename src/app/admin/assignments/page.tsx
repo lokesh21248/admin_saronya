@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { FileUpload } from '@/components/ui/file-upload';
 import { formatDateTime } from '@/lib/utils';
 import {
   FileText,
@@ -27,6 +28,7 @@ export default function AssignmentsManagementPage() {
   const [courseId, setCourseId] = useState('course-1');
   const [instructions, setInstructions] = useState('');
   const [maxMarks, setMaxMarks] = useState('100');
+  const [referenceUrl, setReferenceUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function loadAssignments() {
@@ -60,12 +62,14 @@ export default function AssignmentsManagementPage() {
           course_id: courseId,
           instructions,
           max_marks: maxMarks,
+          reference_url: referenceUrl,
         }),
       });
       if (res.ok) {
         setAddModalOpen(false);
         setTitle('');
         setInstructions('');
+        setReferenceUrl('');
         loadAssignments();
       }
     } catch (err) {
@@ -201,6 +205,16 @@ export default function AssignmentsManagementPage() {
                 value={maxMarks}
                 onChange={(e) => setMaxMarks(e.target.value)}
                 className="mt-1 text-xs"
+              />
+            </div>
+            <div>
+              <FileUpload
+                accept=".pdf,.zip,.doc,.docx"
+                folder="assignments"
+                label="Assignment Brief / Starter Project File"
+                description="Upload problem description PDF or starter code ZIP archive"
+                value={referenceUrl}
+                onChange={setReferenceUrl}
               />
             </div>
             <DialogFooter className="pt-2">

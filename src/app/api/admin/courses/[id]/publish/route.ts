@@ -1,7 +1,8 @@
+export const dynamic = 'force-dynamic';
 // SARVONAYA Course Publish / Status Workflow API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function POST(
   request: Request,
@@ -17,44 +18,41 @@ export async function POST(
     const body = await request.json();
     const targetStatus = body.status || 'published';
 
-    const course = mockDb.courses.find((c) => c.id === id);
+    const course = await supabaseDb.courses.getById(id);
     if (!course) {
       return NextResponse.json({ success: false, error: 'Course not found' }, { status: 404 });
     }
 
     // Validation checks before publishing
-    if (targetStatus === 'published') {
-      if (!course.title || !course.price) {
-        return NextResponse.json(
-          { success: false, error: 'Course must possess a title and valid price before publishing' },
-          { status: 422 }
-        );
-      }
-      course.published_at = new Date().toISOString();
+    if (targetStatus === 'published' && (!course.title || !course.price)) {
+      return NextResponse.json(
+        { success: false, error: 'Course must possess a title and valid price before publishing' },
+        { status: 422 }
+      );
     }
 
-    course.status = targetStatus;
-    course.updated_at = new Date().toISOString();
+    const updated = await supabaseDb.courses.update(id, {
+      status: targetStatus,
+      published_at: targetStatus === 'published' ? new Date().toISOString() : undefined,
+    });
 
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: `COURSE_${targetStatus.toUpperCase()}`,
-      entity_type: 'course',
-      entity_id: course.id,
+      target_type: 'course',
+      target_id: course.id,
+      target_name: course.title,
       details: { title: course.title, newStatus: targetStatus },
-      created_at: new Date().toISOString(),
     });
 
     return NextResponse.json({
       success: true,
       message: `Course successfully moved to ${targetStatus}`,
-      data: course,
+      data: updated,
     });
   } catch (error) {
     console.error('Course Publish Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
-

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Enrollments Management API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
-import { mockDb } from '@/lib/db/mock-db';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET(request: Request) {
   try {
@@ -16,19 +16,17 @@ export async function GET(request: Request) {
     const accessType = searchParams.get('accessType') || '';
     const status = searchParams.get('status') || '';
 
-    let enrollments = mockDb.enrollments.map((enr) => {
-      const student = mockDb.profiles.find((p) => p.id === enr.student_id);
-      const course = mockDb.courses.find((c) => c.id === enr.course_id);
-      return {
-        ...enr,
-        studentName: student?.full_name || 'Student',
-        studentEmail: student?.email || 'N/A',
-        courseTitle: course?.title || 'Course',
-      };
-    });
+    let enrollments = await supabaseDb.enrollments.list();
+
+    let enriched = enrollments.map((enr) => ({
+      ...enr,
+      studentName: enr.student?.full_name || 'Student',
+      studentEmail: enr.student?.email || 'N/A',
+      courseTitle: enr.course?.title || 'Engineering Course',
+    }));
 
     if (search) {
-      enrollments = enrollments.filter(
+      enriched = enriched.filter(
         (e) =>
           e.studentName.toLowerCase().includes(search) ||
           e.studentEmail.toLowerCase().includes(search) ||
@@ -37,20 +35,19 @@ export async function GET(request: Request) {
     }
 
     if (accessType) {
-      enrollments = enrollments.filter((e) => e.access_type === accessType);
+      enriched = enriched.filter((e) => e.access_type === accessType);
     }
 
     if (status) {
-      enrollments = enrollments.filter((e) => e.status === status);
+      enriched = enriched.filter((e) => e.status === status);
     }
 
     return NextResponse.json({
       success: true,
-      total: enrollments.length,
-      data: enrollments,
+      total: enriched.length,
+      data: enriched,
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to fetch enrollments' }, { status: 500 });
   }
 }
-

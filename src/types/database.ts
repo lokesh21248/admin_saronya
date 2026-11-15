@@ -22,6 +22,24 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   roles?: UserRole[];
+  academic_qualification?: any;
+  enrolled_courses_count?: number;
+  completed_courses_count?: number;
+  total_spent?: number;
+  subscription_status?: string;
+  assigned_courses_count?: number;
+  active_students_count?: number;
+  rating?: number;
+}
+
+export interface PlatformSetting {
+  id?: string;
+  key: string;
+  value: any;
+  category: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AcademicBranch {
@@ -99,6 +117,9 @@ export interface Course {
   sections_count?: number;
   lessons_count?: number;
   enrollments_count?: number;
+  enrolled_count?: number;
+  average_rating?: number;
+  reviews_count?: number;
 }
 
 export interface CourseSection {
@@ -230,13 +251,16 @@ export interface Payment {
   currency: string;
   status: PaymentStatus;
   method?: string;
+  payment_method?: string;
   payment_email?: string;
   payment_contact?: string;
   captured_at?: string;
   error_code?: string;
   error_description?: string;
+  tax_amount?: number;
   created_at: string;
   student?: Profile;
+  order?: any;
   course_title?: string;
 }
 
@@ -258,11 +282,16 @@ export interface Coupon {
   discount_type: 'percentage' | 'fixed';
   discount_value: number;
   min_order_amount?: number;
+  min_order_value?: number;
   max_discount_amount?: number;
+  max_discount?: number;
   start_date: string;
   expiry_date?: string;
+  valid_from?: string;
+  valid_until?: string;
   max_uses?: number;
   used_count: number;
+  current_uses?: number;
   per_student_limit: number;
   eligible_course_id?: string;
   eligible_branch_id?: string;
@@ -330,15 +359,20 @@ export interface SupportTicket {
   student?: Profile;
   assigned_staff?: Profile;
   messages_count?: number;
+  messages?: any[];
 }
 
 export interface AuditLog {
   id: string;
   actor_id?: string;
+  actor_name?: string;
   actor_email?: string;
   action: string;
   entity_type: string;
   entity_id?: string;
+  target_type?: string;
+  target_id?: string;
+  target_name?: string;
   details?: Record<string, unknown>;
   ip_address?: string;
   user_agent?: string;

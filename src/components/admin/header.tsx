@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Breadcrumbs } from './breadcrumbs';
+import { useAdminUI } from './admin-context';
 import {
   Bell,
   Search,
@@ -10,17 +11,27 @@ import {
   User,
   LogOut,
   ChevronDown,
+  Menu,
 } from 'lucide-react';
 import Link from 'next/link';
 
 export function Header() {
+  const { toggleMobileNav } = useAdminUI();
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-6 backdrop-blur-md">
-      {/* Left side: Breadcrumb Trail */}
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-20 flex h-16 w-full items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 md:px-6 backdrop-blur-md">
+      {/* Left side: Hamburger on mobile + Breadcrumb Trail */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={toggleMobileNav}
+          className="lg:hidden p-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors"
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         <Breadcrumbs />
       </div>
 
