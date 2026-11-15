@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import { FileUpload } from '@/components/ui/file-upload';
 import {
   FolderTree,
@@ -16,6 +17,7 @@ import {
   Power,
   BookOpen,
   ArrowUpDown,
+  Trash2,
 } from 'lucide-react';
 
 export default function CategoriesManagementPage() {
@@ -27,6 +29,8 @@ export default function CategoriesManagementPage() {
   const [icon, setIcon] = useState('Code2');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<any>(null);
+  const [deletingCategory, setDeletingCategory] = useState(false);
 
   async function loadCategories() {
     try {
@@ -81,6 +85,28 @@ export default function CategoriesManagementPage() {
       loadCategories();
     } catch (err) {
       console.error('Failed to toggle category:', err);
+    }
+  }
+
+  async function handleDeleteCategory() {
+    if (!deleteCategoryTarget) return;
+    try {
+      setDeletingCategory(true);
+      const res = await fetch(`/api/admin/categories/${deleteCategoryTarget.id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setDeleteCategoryTarget(null);
+        loadCategories();
+      } else {
+        alert(json.error || 'Failed to delete category');
+      }
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      alert('Error occurred while deleting category');
+    } finally {
+      setDeletingCategory(false);
     }
   }
 
@@ -155,15 +181,26 @@ export default function CategoriesManagementPage() {
                         <StatusBadge status={c.is_active ? 'active' : 'inactive'} />
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleStatus(c)}
-                          className={c.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}
-                        >
-                          <Power className="h-3.5 w-3.5 mr-1" />
-                          {c.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleStatus(c)}
+                            className={c.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}
+                          >
+                            <Power className="h-3.5 w-3.5 mr-1" />
+                            {c.is_active ? 'Deactivate' : 'Activate'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Delete Category"
+                            onClick={() => setDeleteCategoryTarget(c)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -222,6 +259,19 @@ export default function CategoriesManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Deleting Category */}
+      {deleteCategoryTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteCategoryTarget)}
+          onOpenChange={(open) => !open && setDeleteCategoryTarget(null)}
+          title="Delete Category"
+          description={`Are you sure you want to delete category "${deleteCategoryTarget.name}"? Courses associated with this category will become unassigned.`}
+          confirmLabel={deletingCategory ? 'Deleting...' : 'Delete Category'}
+          isDestructive={true}
+          onConfirm={handleDeleteCategory}
+        />
+      )}
     </div>
   );
 }

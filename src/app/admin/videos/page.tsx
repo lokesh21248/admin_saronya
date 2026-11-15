@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { VideoPreviewDialog, type PreviewTarget } from '@/components/admin/video-preview-dialog';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Video, Upload, ShieldCheck, Play, AlertTriangle, Loader2 } from 'lucide-react';
+import { Video, Upload, ShieldCheck, Play, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 
 interface VideoRow {
   id: string;
@@ -102,8 +103,37 @@ export default function MuxVideosManagementPage() {
   const [jobs, setJobs] = useState<UploadJob[]>([]);
   const jobsRef = useRef<UploadJob[]>([]);
   const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
+  const [deleteVideoTarget, setDeleteVideoTarget] = useState<VideoRow | null>(null);
+  const [deletingVideo, setDeletingVideo] = useState(false);
 
   const reload = useCallback(() => setRefreshKey((key) => key + 1), []);
+
+  async function handleDeleteVideo() {
+    if (!deleteVideoTarget) return;
+    try {
+      setDeletingVideo(true);
+      const res = await fetch('/api/admin/videos', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetId: deleteVideoTarget.muxAssetId || deleteVideoTarget.id,
+          lessonId: deleteVideoTarget.lessonId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDeleteVideoTarget(null);
+        reload();
+      } else {
+        alert(data.error || 'Failed to delete video asset');
+      }
+    } catch (err) {
+      console.error('Failed to delete video:', err);
+      alert('Error occurred while deleting video asset');
+    } finally {
+      setDeletingVideo(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -427,22 +457,33 @@ export default function MuxVideosManagementPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 text-xs text-[#0B3473]"
-                          disabled={!vid.playbackId || vid.status !== 'ready'}
-                          onClick={() =>
-                            setPreviewTarget({
-                              title: vid.title,
-                              lessonId: vid.lessonId,
-                              playbackId: vid.playbackId,
-                            })
-                          }
-                        >
-                          <Play className="h-3.5 w-3.5 mr-1" />
-                          Preview
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-xs text-[#0B3473]"
+                            disabled={!vid.playbackId || vid.status !== 'ready'}
+                            onClick={() =>
+                              setPreviewTarget({
+                                title: vid.title,
+                                lessonId: vid.lessonId,
+                                playbackId: vid.playbackId,
+                              })
+                            }
+                          >
+                            <Play className="h-3.5 w-3.5 mr-1" />
+                            Preview
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Delete Video Asset"
+                            onClick={() => setDeleteVideoTarget(vid)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -578,6 +619,19 @@ export default function MuxVideosManagementPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Deleting Video Asset */}
+      {deleteVideoTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteVideoTarget)}
+          onOpenChange={(open) => !open && setDeleteVideoTarget(null)}
+          title="Delete Video Stream Asset"
+          description={`Are you sure you want to delete "${deleteVideoTarget.title}"? It will be removed from Mux streaming infrastructure and unlinked from ${deleteVideoTarget.courseTitle || 'its lesson'}. This action cannot be reversed.`}
+          confirmLabel={deletingVideo ? 'Deleting...' : 'Delete Permanently'}
+          isDestructive={true}
+          onConfirm={handleDeleteVideo}
+        />
+      )}
     </div>
   );
 }

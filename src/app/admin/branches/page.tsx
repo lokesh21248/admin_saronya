@@ -19,6 +19,7 @@ import {
   Users,
   Info,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 
 export default function AcademicBranchesPage() {
@@ -27,6 +28,8 @@ export default function AcademicBranchesPage() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editBranch, setEditBranch] = useState<any>(null);
   const [toggleTarget, setToggleTarget] = useState<any>(null);
+  const [deleteBranchTarget, setDeleteBranchTarget] = useState<any>(null);
+  const [deletingBranch, setDeletingBranch] = useState(false);
 
   // New Branch Form State
   const [newCode, setNewCode] = useState('');
@@ -114,6 +117,28 @@ export default function AcademicBranchesPage() {
       }
     } catch (err) {
       console.error('Failed to toggle branch status:', err);
+    }
+  }
+
+  async function handleDeleteBranch() {
+    if (!deleteBranchTarget) return;
+    try {
+      setDeletingBranch(true);
+      const res = await fetch(`/api/admin/branches/${deleteBranchTarget.id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setDeleteBranchTarget(null);
+        loadBranches();
+      } else {
+        alert(json.error || 'Failed to delete branch');
+      }
+    } catch (err) {
+      console.error('Error deleting branch:', err);
+      alert('Error occurred while deleting branch');
+    } finally {
+      setDeletingBranch(false);
     }
   }
 
@@ -218,6 +243,15 @@ export default function AcademicBranchesPage() {
                             onClick={() => setToggleTarget(b)}
                           >
                             <Power className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                            title="Delete Branch"
+                            onClick={() => setDeleteBranchTarget(b)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </td>
@@ -328,6 +362,19 @@ export default function AcademicBranchesPage() {
           confirmLabel={toggleTarget.is_active ? 'Deactivate Branch' : 'Activate Branch'}
           isDestructive={toggleTarget.is_active}
           onConfirm={handleToggleStatus}
+        />
+      )}
+
+      {/* Confirmation Dialog for Permanently Deleting Branch */}
+      {deleteBranchTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteBranchTarget)}
+          onOpenChange={(open) => !open && setDeleteBranchTarget(null)}
+          title="Delete Academic Branch"
+          description={`Are you sure you want to permanently delete the "${deleteBranchTarget.name} (${deleteBranchTarget.code})" branch? All course mappings associated with this discipline will be cleared. This action cannot be reversed.`}
+          confirmLabel={deletingBranch ? 'Deleting...' : 'Delete Branch'}
+          isDestructive={true}
+          onConfirm={handleDeleteBranch}
         />
       )}
     </div>

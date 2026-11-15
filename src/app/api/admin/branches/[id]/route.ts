@@ -44,3 +44,36 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const adminUser = await getCurrentAdminUser();
+    if (!adminUser) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    await supabaseDb.branches.delete(id);
+
+    await supabaseDb.auditLogs.log({
+      actor_id: adminUser.id,
+      actor_name: adminUser.name,
+      action: 'BRANCH_DELETED',
+      target_type: 'academic_branch',
+      target_id: id,
+      target_name: `Branch ${id}`,
+      details: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Academic branch permanently deleted successfully',
+    });
+  } catch (error) {
+    console.error('Branch DELETE Error:', error);
+    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+  }
+}

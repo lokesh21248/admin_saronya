@@ -30,3 +30,25 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: 'Failed to update category' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const adminUser = await getCurrentAdminUser();
+    if (!adminUser) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    await supabaseDb.categories.delete(id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Category deleted successfully',
+    });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to delete category' }, { status: 500 });
+  }
+}

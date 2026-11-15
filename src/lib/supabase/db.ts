@@ -118,6 +118,22 @@ export const supabaseDb = {
       }
       return null;
     },
+
+    async delete(id: string): Promise<boolean> {
+      try {
+        const client = getSupabaseServerClient();
+        await client.from('course_branch_mapping').delete().eq('branch_id', id);
+        await client.from('academic_branches').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase branch delete warning:', err);
+      }
+
+      const idx = mockDb.branches.findIndex((b) => b.id === id);
+      if (idx !== -1) {
+        mockDb.branches.splice(idx, 1);
+      }
+      return true;
+    },
   },
 
   // 2. CATEGORIES
@@ -216,6 +232,21 @@ export const supabaseDb = {
         return cat;
       }
       return null;
+    },
+
+    async delete(id: string): Promise<boolean> {
+      try {
+        const client = getSupabaseServerClient();
+        await client.from('categories').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Supabase category delete warning:', err);
+      }
+
+      const idx = mockDb.categories.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        mockDb.categories.splice(idx, 1);
+      }
+      return true;
     },
   },
 

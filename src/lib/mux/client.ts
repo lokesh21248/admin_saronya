@@ -94,8 +94,27 @@ async function muxRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   const json = await response.json();
   return json.data as T;
+}
+
+/**
+ * Permanently deletes a video asset from Mux.
+ */
+export async function deleteMuxAsset(assetId: string): Promise<boolean> {
+  try {
+    await muxRequest<void>(`/assets/${encodeURIComponent(assetId)}`, {
+      method: 'DELETE',
+    });
+    return true;
+  } catch (err) {
+    console.warn(`Failed to delete Mux asset ${assetId}:`, err);
+    return false;
+  }
 }
 
 /**

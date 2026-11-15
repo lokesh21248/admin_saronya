@@ -29,3 +29,31 @@ export async function PATCH(
   }
 }
 
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const adminUser = await getCurrentAdminUser();
+    if (!adminUser) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const idx = mockDb.lessons.findIndex((l) => l.id === id);
+
+    if (idx === -1) {
+      return NextResponse.json({ success: false, error: 'Lesson not found' }, { status: 404 });
+    }
+
+    const [deleted] = mockDb.lessons.splice(idx, 1);
+    return NextResponse.json({
+      success: true,
+      message: 'Lesson deleted successfully',
+      data: deleted,
+    });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to delete lesson' }, { status: 500 });
+  }
+}
+

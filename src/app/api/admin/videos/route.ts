@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
 import { mockDb } from '@/lib/db/mock-db';
-import { isMuxConfigured, listMuxAssets } from '@/lib/mux/client';
+import { isMuxConfigured, listMuxAssets, deleteMuxAsset } from '@/lib/mux/client';
 import { applyLessonVideoUpdate, findLessonWithCourse } from '@/lib/mux/lesson-video';
 import type { Lesson } from '@/types/database';
 
@@ -144,5 +144,45 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Failed to link video:', error);
     return NextResponse.json({ success: false, error: 'Failed to link video' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const adminUser = await getCurrentAdminUser();
+    if (!adminUser) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { assetId, lessonId } = await request.json();
+
+    if (lessonId) {
+      await applyLessonVideoUpdate(
+        { lessonId },
+        {
+          mux_asset_id: undefined,
+          mux_playback_id: undefined,
+          video_status: 'ready',
+        }
+      );
+    } else if (assetId) {
+      const linked = mockDb.lessons.find((l) => l.mux_asset_id === assetId);
+      if (linked) {
+        linked.mux_asset_id = undefined;
+        linked.mux_playback_id = undefined;
+      }
+    }
+
+    if (assetId && isMuxConfigured()) {
+      await deleteMuxAsset(assetId);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Video asset removed successfully',
+    });
+  } catch (error) {
+    console.error('Failed to delete video asset:', error);
+    return NextResponse.json({ success: false, error: 'Failed to delete video asset' }, { status: 500 });
   }
 }

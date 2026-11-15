@@ -45,6 +45,54 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
   const [deleteCourseOpen, setDeleteCourseOpen] = useState(false);
   const [deletingCourse, setDeletingCourse] = useState(false);
 
+  // Delete Section & Lesson
+  const [deleteSectionTarget, setDeleteSectionTarget] = useState<any>(null);
+  const [deletingSection, setDeletingSection] = useState(false);
+  const [deleteLessonTarget, setDeleteLessonTarget] = useState<any>(null);
+  const [deletingLesson, setDeletingLesson] = useState(false);
+
+  async function handleDeleteSection() {
+    if (!deleteSectionTarget) return;
+    try {
+      setDeletingSection(true);
+      const res = await fetch(`/api/admin/sections/${deleteSectionTarget.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDeleteSectionTarget(null);
+        loadCourse();
+      } else {
+        alert(data.error || 'Failed to delete section');
+      }
+    } catch (err) {
+      console.error('Failed to delete section:', err);
+    } finally {
+      setDeletingSection(false);
+    }
+  }
+
+  async function handleDeleteLesson() {
+    if (!deleteLessonTarget) return;
+    try {
+      setDeletingLesson(true);
+      const res = await fetch(`/api/admin/lessons/${deleteLessonTarget.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDeleteLessonTarget(null);
+        loadCourse();
+      } else {
+        alert(data.error || 'Failed to delete lesson');
+      }
+    } catch (err) {
+      console.error('Failed to delete lesson:', err);
+    } finally {
+      setDeletingLesson(false);
+    }
+  }
+
   // Video Linking Modal for existing lesson
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedLessonForVideo, setSelectedLessonForVideo] = useState<any>(null);
@@ -254,18 +302,29 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
                     {section.lessons?.length || 0} Lessons • Module {sIdx + 1}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setTargetSectionId(section.id);
-                    setAddLessonOpen(true);
-                  }}
-                  className="h-8 text-xs gap-1 border-slate-300"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Lesson</span>
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTargetSectionId(section.id);
+                      setAddLessonOpen(true);
+                    }}
+                    className="h-8 text-xs gap-1 border-slate-300"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Lesson</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeleteSectionTarget(section)}
+                    className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                    title="Delete Module Section"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y divide-slate-100">
@@ -300,7 +359,7 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -309,6 +368,15 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
                           >
                             <Film className="h-3.5 w-3.5 mr-1" />
                             {lesson.mux_playback_id ? 'Change Video' : 'Upload Video'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteLessonTarget(lesson)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Delete Lesson"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -471,6 +539,32 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
           confirmLabel={deletingCourse ? 'Deleting Course...' : 'Delete Permanently'}
           isDestructive={true}
           onConfirm={handleDeleteCourse}
+        />
+      )}
+
+      {/* Confirmation Dialog for Deleting Module Section */}
+      {deleteSectionTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteSectionTarget)}
+          onOpenChange={(open) => !open && setDeleteSectionTarget(null)}
+          title="Delete Curriculum Module Section"
+          description={`Are you sure you want to delete section "${deleteSectionTarget.title}"? All lessons inside this section will also be permanently deleted. This cannot be undone.`}
+          confirmLabel={deletingSection ? 'Deleting...' : 'Delete Section'}
+          isDestructive={true}
+          onConfirm={handleDeleteSection}
+        />
+      )}
+
+      {/* Confirmation Dialog for Deleting Individual Lesson */}
+      {deleteLessonTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteLessonTarget)}
+          onOpenChange={(open) => !open && setDeleteLessonTarget(null)}
+          title="Delete Lesson"
+          description={`Are you sure you want to delete lesson "${deleteLessonTarget.title}"? All attached videos and downloadable documents will be unlinked.`}
+          confirmLabel={deletingLesson ? 'Deleting...' : 'Delete Lesson'}
+          isDestructive={true}
+          onConfirm={handleDeleteLesson}
         />
       )}
     </div>
