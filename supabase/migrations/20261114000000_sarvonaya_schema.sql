@@ -204,6 +204,7 @@ CREATE TABLE public.lessons (
     mux_asset_id VARCHAR(255),
     mux_playback_id VARCHAR(255),
     video_duration NUMERIC(10,2),
+    duration_seconds NUMERIC(10,2),
     video_status VARCHAR(50) DEFAULT 'ready' CHECK (video_status IN ('uploading', 'processing', 'ready', 'errored', 'archived')),
     video_resolution VARCHAR(50),
     article_content TEXT,
