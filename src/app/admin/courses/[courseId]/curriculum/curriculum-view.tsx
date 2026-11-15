@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Switch } from '@/components/ui/switch';
 import { VideoUploader } from '@/components/admin/video-uploader';
 import { FileUpload } from '@/components/ui/file-upload';
+import { ConfirmDialog } from '@/components/admin/confirm-dialog';
 import {
   ArrowLeft,
   Plus,
@@ -18,9 +20,11 @@ import {
   Upload,
   Film,
   FileText,
+  Trash2,
 } from 'lucide-react';
 
 export default function CurriculumView({ courseId }: { courseId: string }) {
+  const router = useRouter();
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -37,12 +41,36 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
   const [newLessonResourceUrl, setNewLessonResourceUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Delete Course
+  const [deleteCourseOpen, setDeleteCourseOpen] = useState(false);
+  const [deletingCourse, setDeletingCourse] = useState(false);
+
   // Video Linking Modal for existing lesson
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedLessonForVideo, setSelectedLessonForVideo] = useState<any>(null);
   const [tempPlaybackId, setTempPlaybackId] = useState('');
   const [tempAssetId, setTempAssetId] = useState('');
   const [savingVideo, setSavingVideo] = useState(false);
+
+  async function handleDeleteCourse() {
+    try {
+      setDeletingCourse(true);
+      const res = await fetch(`/api/admin/courses/${courseId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        router.push('/admin/courses');
+      } else {
+        alert(data.error || 'Failed to delete course');
+      }
+    } catch (err) {
+      console.error('Failed to delete course:', err);
+      alert('Error occurred while deleting course');
+    } finally {
+      setDeletingCourse(false);
+    }
+  }
 
   function openVideoModal(lesson: any) {
     setSelectedLessonForVideo(lesson);
@@ -179,6 +207,16 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setDeleteCourseOpen(true)}
+            className="gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+            size="sm"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete Course</span>
+          </Button>
+
           <Button
             onClick={() => setAddSectionOpen(true)}
             className="gap-1.5 bg-[#0B3473] hover:bg-[#082654]"
@@ -422,6 +460,19 @@ export default function CurriculumView({ courseId }: { courseId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Deleting Course */}
+      {deleteCourseOpen && (
+        <ConfirmDialog
+          open={deleteCourseOpen}
+          onOpenChange={setDeleteCourseOpen}
+          title="Delete Entire Engineering Course"
+          description={`Are you sure you want to permanently delete "${course?.title || 'this course'}"? All curriculum modules, lessons, downloadable resources, and student access will be permanently destroyed. This action cannot be reversed.`}
+          confirmLabel={deletingCourse ? 'Deleting Course...' : 'Delete Permanently'}
+          isDestructive={true}
+          onConfirm={handleDeleteCourse}
+        />
+      )}
     </div>
   );
 }

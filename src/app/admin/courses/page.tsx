@@ -21,6 +21,7 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 
 export default function CoursesListPage() {
@@ -29,6 +30,8 @@ export default function CoursesListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [publishTarget, setPublishTarget] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function loadCourses() {
     try {
@@ -68,6 +71,28 @@ export default function CoursesListPage() {
       }
     } catch (err) {
       console.error('Failed to change publish status:', err);
+    }
+  }
+
+  async function handleDeleteCourse() {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      const res = await fetch(`/api/admin/courses/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDeleteTarget(null);
+        loadCourses();
+      } else {
+        alert(data.error || 'Failed to delete course');
+      }
+    } catch (err) {
+      console.error('Failed to delete course:', err);
+      alert('Error occurred while deleting course');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -206,6 +231,16 @@ export default function CoursesListPage() {
                 >
                   {course.status === 'published' ? 'Unpublish' : 'Publish'}
                 </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDeleteTarget(course)}
+                  className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="Delete Course Permanently"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </Card>
           ))
@@ -228,6 +263,19 @@ export default function CoursesListPage() {
           confirmLabel={publishTarget.status === 'published' ? 'Unpublish Course' : 'Publish Now'}
           isDestructive={publishTarget.status === 'published'}
           onConfirm={handleTogglePublish}
+        />
+      )}
+
+      {/* Confirmation Dialog for Permanently Deleting Course */}
+      {deleteTarget && (
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => !open && setDeleteTarget(null)}
+          title="Delete Engineering Course"
+          description={`Are you sure you want to permanently delete "${deleteTarget.title}"? All curriculum structure, linked Mux video associations, and student catalog references will be permanently removed. This action cannot be undone.`}
+          confirmLabel={deleting ? 'Deleting...' : 'Delete Permanently'}
+          isDestructive={true}
+          onConfirm={handleDeleteCourse}
         />
       )}
     </div>

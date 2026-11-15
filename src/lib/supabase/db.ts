@@ -417,6 +417,25 @@ export const supabaseDb = {
       }
       return null;
     },
+
+    async delete(id: string): Promise<boolean> {
+      try {
+        const client = getSupabaseServerClient();
+        await client.from('course_branch_mapping').delete().eq('course_id', id);
+        const { error } = await client.from('courses').delete().eq('id', id);
+        if (error) {
+          console.warn('Supabase course delete warning:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase course delete warning:', err);
+      }
+
+      const idx = mockDb.courses.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        mockDb.courses.splice(idx, 1);
+      }
+      return true;
+    },
   },
 
   // 4. STUDENTS
