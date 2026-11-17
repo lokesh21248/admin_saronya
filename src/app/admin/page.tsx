@@ -57,38 +57,21 @@ export default function AdminDashboardPage() {
   }, [filter]);
 
   const stats = data?.stats || {
-    totalStudents: 1845,
-    activeStudents: 1734,
-    totalCourses: 16,
-    publishedCourses: 13,
-    totalInstructors: 21,
-    totalRevenue: 4852900,
-    activeSubscriptions: 455,
+    totalStudents: 0,
+    activeStudents: 0,
+    totalCourses: 0,
+    publishedCourses: 0,
+    totalInstructors: 0,
+    totalRevenue: 0,
+    activeSubscriptions: 0,
     pendingPayments: 0,
-    studentGrowthPct: 14.8,
-    revenueGrowthPct: 22.4,
+    studentGrowthPct: 0,
+    revenueGrowthPct: 0,
   };
 
-  const revenueData = data?.revenueOverTime || [
-    { date: 'Nov 01', revenue: 142000, orders: 48 },
-    { date: 'Nov 03', revenue: 198000, orders: 62 },
-    { date: 'Nov 05', revenue: 165000, orders: 51 },
-    { date: 'Nov 07', revenue: 245000, orders: 79 },
-    { date: 'Nov 09', revenue: 310000, orders: 94 },
-    { date: 'Nov 11', revenue: 280000, orders: 86 },
-    { date: 'Nov 13', revenue: 360000, orders: 110 },
-    { date: 'Nov 14', revenue: 412000, orders: 128 },
-  ];
+  const revenueData = data?.revenueOverTime || [];
 
-  const branchDistribution = data?.branchDistribution || [
-    { branch: 'CSE', students: 420 },
-    { branch: 'AIML', students: 390 },
-    { branch: 'IT', students: 310 },
-    { branch: 'ECE', students: 280 },
-    { branch: 'BCA', students: 220 },
-    { branch: 'MCA', students: 180 },
-    { branch: 'EEE', students: 160 },
-  ];
+  const branchDistribution = data?.branchDistribution || [];
 
   return (
     <div className="space-y-6">

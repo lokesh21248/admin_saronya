@@ -1,5 +1,5 @@
 // SARVONAYA Production Supabase Database Layer
-// Connects to live Supabase PostgreSQL tables with fallback & synchronization
+// Connects to live Supabase PostgreSQL tables (Zero dummy data, clean state)
 import { getSupabaseServerClient } from './admin';
 import { mockDb } from '@/lib/db/mock-db';
 import {
@@ -18,15 +18,6 @@ import {
   PromotionalBanner,
 } from '@/types/database';
 
-// Helper getters for mock profiles
-function getMockStudents(): Profile[] {
-  return mockDb.profiles.filter((p) => !p.roles || p.roles.includes('student') || p.roles.length === 0);
-}
-
-function getMockInstructors(): Profile[] {
-  return mockDb.profiles.filter((p) => p.roles?.includes('instructor'));
-}
-
 export const supabaseDb = {
   // 1. ACADEMIC BRANCHES
   branches: {
@@ -38,23 +29,60 @@ export const supabaseDb = {
           .select('*')
           .order('code', { ascending: true });
 
-        if (!error && data && data.length > 0) {
-          return data.map((b) => ({
-            id: b.id,
-            code: b.code,
-            name: b.name,
-            description: b.description || '',
-            is_active: b.is_active,
-            created_at: b.created_at,
-            updated_at: b.updated_at,
-            courses_count: mockDb.branches.find((mb) => mb.code === b.code)?.courses_count || 0,
-            students_count: mockDb.branches.find((mb) => mb.code === b.code)?.students_count || 0,
-          }));
+        if (!error && data) {
+          // Real student count per branch
+          let studentCountsByBranch: Record<string, number> = {};
+          try {
+            const { data: qualData } = await client
+              .from('academic_qualifications')
+              .select('branch_code');
+            if (qualData) {
+              for (const q of qualData) {
+                if (q.branch_code) {
+                  studentCountsByBranch[q.branch_code] = (studentCountsByBranch[q.branch_code] || 0) + 1;
+                }
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          // Real course count per branch
+          let courseCountsByBranch: Record<string, number> = {};
+          try {
+            const { data: mapData } = await client
+              .from('course_branch_mappings')
+              .select('branch_id');
+            if (mapData) {
+              for (const m of mapData) {
+                if (m.branch_id) {
+                  courseCountsByBranch[m.branch_id] = (courseCountsByBranch[m.branch_id] || 0) + 1;
+                }
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          return data.map((b: any) => {
+            const branchCode = b.code || b.branch_code || '';
+            return {
+              id: b.id,
+              code: branchCode,
+              name: b.name || b.branch_name || '',
+              description: b.description || '',
+              is_active: b.is_active ?? true,
+              created_at: b.created_at,
+              updated_at: b.updated_at,
+              courses_count: courseCountsByBranch[b.id] || 0,
+              students_count: studentCountsByBranch[branchCode] || 0,
+            };
+          });
         }
       } catch (err) {
-        console.warn('Supabase branches fetch failed, using fallback:', err);
+        console.warn('Supabase branches fetch failed:', err);
       }
-      return mockDb.branches;
+      return [];
     },
 
     async create(input: { code: string; name: string; description?: string }): Promise<AcademicBranch> {
@@ -123,7 +151,7 @@ export const supabaseDb = {
     async delete(id: string): Promise<boolean> {
       try {
         const client = getSupabaseServerClient();
-        await client.from('course_branch_mapping').delete().eq('branch_id', id);
+        await client.from('course_branch_mappings').delete().eq('branch_id', id);
         await client.from('academic_branches').delete().eq('id', id);
       } catch (err) {
         console.warn('Supabase branch delete warning:', err);
@@ -147,7 +175,7 @@ export const supabaseDb = {
           .select('*')
           .order('display_order', { ascending: true });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           return data.map((c) => ({
             id: c.id,
             name: c.name,
@@ -159,13 +187,13 @@ export const supabaseDb = {
             display_order: c.display_order,
             created_at: c.created_at,
             updated_at: c.updated_at,
-            courses_count: mockDb.categories.find((mc) => mc.slug === c.slug)?.courses_count || 0,
+            courses_count: 0,
           }));
         }
       } catch (err) {
-        console.warn('Supabase categories fetch failed, using fallback:', err);
+        console.warn('Supabase categories fetch failed:', err);
       }
-      return mockDb.categories;
+      return [];
     },
 
     async create(input: { name: string; slug: string; description?: string; icon?: string }): Promise<Category> {
@@ -265,8 +293,8 @@ export const supabaseDb = {
           `)
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          return data.map((c) => ({
+        if (!error && data) {
+          return data.map((c: any) => ({
             id: c.id,
             title: c.title,
             slug: c.slug,
@@ -286,20 +314,20 @@ export const supabaseDb = {
             published_at: c.published_at,
             created_at: c.created_at,
             updated_at: c.updated_at,
-            category: c.category || mockDb.courses.find((mc) => mc.slug === c.slug)?.category,
-            primary_instructor: c.primary_instructor || mockDb.courses.find((mc) => mc.slug === c.slug)?.primary_instructor,
-            branches: mockDb.courses.find((mc) => mc.slug === c.slug)?.branches || [],
-            sections_count: mockDb.courses.find((mc) => mc.slug === c.slug)?.sections_count || 2,
-            lessons_count: mockDb.courses.find((mc) => mc.slug === c.slug)?.lessons_count || 12,
-            enrollments_count: mockDb.courses.find((mc) => mc.slug === c.slug)?.enrollments_count || 24,
-            average_rating: mockDb.courses.find((mc) => mc.slug === c.slug)?.average_rating || 4.8,
-            reviews_count: mockDb.courses.find((mc) => mc.slug === c.slug)?.reviews_count || 15,
+            category: c.category,
+            primary_instructor: c.primary_instructor,
+            branches: [],
+            sections_count: 0,
+            lessons_count: 0,
+            enrollments_count: 0,
+            average_rating: 0,
+            reviews_count: 0,
           }));
         }
       } catch (err) {
-        console.warn('Supabase courses fetch failed, using fallback:', err);
+        console.warn('Supabase courses fetch failed:', err);
       }
-      return mockDb.courses;
+      return [];
     },
 
     async getById(id: string): Promise<Course | null> {
@@ -336,24 +364,23 @@ export const supabaseDb = {
             published_at: data.published_at,
             created_at: data.created_at,
             updated_at: data.updated_at,
-            category: data.category || mockDb.courses.find((c) => c.id === id)?.category,
-            primary_instructor: data.primary_instructor || mockDb.courses.find((c) => c.id === id)?.primary_instructor,
-            branches: mockDb.courses.find((c) => c.id === id)?.branches || [],
-            sections_count: mockDb.courses.find((c) => c.id === id)?.sections_count || 2,
-            lessons_count: mockDb.courses.find((c) => c.id === id)?.lessons_count || 12,
+            category: data.category,
+            primary_instructor: data.primary_instructor,
+            branches: [],
+            sections_count: 0,
+            lessons_count: 0,
           };
         }
       } catch (err) {
         console.warn('Supabase course getById warning:', err);
       }
 
-      return mockDb.courses.find((c) => c.id === id) || null;
+      return null;
     },
 
     async create(courseData: Partial<Course> & { branch_ids?: string[] }): Promise<Course> {
       const generatedId = `e1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`;
       const slug = courseData.slug || courseData.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || `course-${Date.now()}`;
-      const instructors = getMockInstructors();
 
       const newCourse: Course = {
         id: generatedId,
@@ -362,21 +389,25 @@ export const supabaseDb = {
         short_description: courseData.short_description || '',
         full_description: courseData.full_description || '',
         thumbnail_url: courseData.thumbnail_url || '/placeholders/course-placeholder.svg',
-        category_id: courseData.category_id || mockDb.categories[0]?.id,
-        primary_instructor_id: courseData.primary_instructor_id || instructors[0]?.id,
+        category_id: courseData.category_id || '',
+        primary_instructor_id: courseData.primary_instructor_id,
         difficulty_level: courseData.difficulty_level || 'all_levels',
-        duration_hours: courseData.duration_hours || 10,
+        duration_hours: courseData.duration_hours || 0,
         language: courseData.language || 'English',
-        price: courseData.price || 1999,
+        price: courseData.price || 0,
         discount_price: courseData.discount_price,
         is_subscription_eligible: courseData.is_subscription_eligible ?? true,
         access_duration_days: courseData.access_duration_days || 365,
         status: courseData.status || 'draft',
+        published_at: courseData.status === 'published' ? new Date().toISOString() : undefined,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         branches: [],
         sections_count: 0,
         lessons_count: 0,
+        enrollments_count: 0,
+        average_rating: 0,
+        reviews_count: 0,
       };
 
       try {
@@ -389,28 +420,30 @@ export const supabaseDb = {
             short_description: newCourse.short_description,
             full_description: newCourse.full_description,
             thumbnail_url: newCourse.thumbnail_url,
-            category_id: newCourse.category_id,
-            primary_instructor_id: newCourse.primary_instructor_id,
+            category_id: newCourse.category_id || null,
+            primary_instructor_id: newCourse.primary_instructor_id || null,
             difficulty_level: newCourse.difficulty_level,
             duration_hours: newCourse.duration_hours,
             language: newCourse.language,
             price: newCourse.price,
-            discount_price: newCourse.discount_price,
+            discount_price: newCourse.discount_price || null,
             is_subscription_eligible: newCourse.is_subscription_eligible,
             access_duration_days: newCourse.access_duration_days,
             status: newCourse.status,
+            published_at: newCourse.published_at || null,
           })
           .select()
           .single();
 
         if (!error && data) {
           newCourse.id = data.id;
+
           if (courseData.branch_ids && courseData.branch_ids.length > 0) {
-            const mappings = courseData.branch_ids.map((bId) => ({
+            const mappings = courseData.branch_ids.map((branchId) => ({
               course_id: data.id,
-              branch_id: bId,
+              branch_id: branchId,
             }));
-            await client.from('course_branch_mapping').insert(mappings);
+            await client.from('course_branch_mappings').insert(mappings);
           }
         }
       } catch (err) {
@@ -421,7 +454,7 @@ export const supabaseDb = {
       return newCourse;
     },
 
-    async update(id: string, updates: Partial<Course>): Promise<Course | null> {
+    async update(id: string, updates: Partial<Course> & { branch_ids?: string[] }): Promise<Course | null> {
       try {
         const client = getSupabaseServerClient();
         await client
@@ -431,13 +464,31 @@ export const supabaseDb = {
             ...(updates.slug && { slug: updates.slug }),
             ...(updates.short_description !== undefined && { short_description: updates.short_description }),
             ...(updates.full_description !== undefined && { full_description: updates.full_description }),
-            ...(updates.thumbnail_url && { thumbnail_url: updates.thumbnail_url }),
+            ...(updates.thumbnail_url !== undefined && { thumbnail_url: updates.thumbnail_url }),
+            ...(updates.category_id !== undefined && { category_id: updates.category_id }),
+            ...(updates.primary_instructor_id !== undefined && { primary_instructor_id: updates.primary_instructor_id }),
+            ...(updates.difficulty_level && { difficulty_level: updates.difficulty_level }),
+            ...(updates.duration_hours !== undefined && { duration_hours: updates.duration_hours }),
             ...(updates.price !== undefined && { price: updates.price }),
             ...(updates.discount_price !== undefined && { discount_price: updates.discount_price }),
-            ...(updates.status && { status: updates.status }),
+            ...(updates.status && {
+              status: updates.status,
+              published_at: updates.status === 'published' ? new Date().toISOString() : null,
+            }),
             updated_at: new Date().toISOString(),
           })
           .eq('id', id);
+
+        if (updates.branch_ids) {
+          await client.from('course_branch_mappings').delete().eq('course_id', id);
+          if (updates.branch_ids.length > 0) {
+            const mappings = updates.branch_ids.map((branchId) => ({
+              course_id: id,
+              branch_id: branchId,
+            }));
+            await client.from('course_branch_mappings').insert(mappings);
+          }
+        }
       } catch (err) {
         console.warn('Supabase course update warning:', err);
       }
@@ -453,11 +504,9 @@ export const supabaseDb = {
     async delete(id: string): Promise<boolean> {
       try {
         const client = getSupabaseServerClient();
-        await client.from('course_branch_mapping').delete().eq('course_id', id);
-        const { error } = await client.from('courses').delete().eq('id', id);
-        if (error) {
-          console.warn('Supabase course delete warning:', error);
-        }
+        await client.from('course_branch_mappings').delete().eq('course_id', id);
+        await client.from('course_sections').delete().eq('course_id', id);
+        await client.from('courses').delete().eq('id', id);
       } catch (err) {
         console.warn('Supabase course delete warning:', err);
       }
@@ -473,7 +522,6 @@ export const supabaseDb = {
   // 4. STUDENTS
   students: {
     async list(): Promise<Profile[]> {
-      const mockStudents = getMockStudents();
       try {
         const client = getSupabaseServerClient();
         const { data, error } = await client
@@ -485,37 +533,33 @@ export const supabaseDb = {
               academic_branches (*)
             )
           `)
-          .eq('status', 'active');
+          .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          return data.map((p) => {
-            const mockMatch = mockStudents.find((ms) => ms.email === p.email);
-            return {
-              id: p.id,
-              email: p.email,
-              full_name: p.full_name,
-              phone: p.phone,
-              avatar_url: p.avatar_url,
-              bio: p.bio,
-              status: p.status,
-              created_at: p.created_at,
-              updated_at: p.updated_at,
-              roles: ['student'],
-              academic_qualification: mockMatch?.academic_qualification,
-              enrolled_courses_count: mockMatch?.enrolled_courses_count || 1,
-              completed_courses_count: mockMatch?.completed_courses_count || 0,
-              total_spent: mockMatch?.total_spent || 2499,
-            };
-          });
+        if (!error && data) {
+          return data.map((p: any) => ({
+            id: p.id,
+            email: p.email,
+            full_name: p.full_name || 'Student',
+            phone: p.phone,
+            avatar_url: p.avatar_url,
+            bio: p.bio,
+            status: p.status || 'active',
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            roles: ['student'],
+            academic_qualification: p.academic_qualifications?.[0],
+            enrolled_courses_count: 0,
+            completed_courses_count: 0,
+            total_spent: 0,
+          }));
         }
       } catch (err) {
-        console.warn('Supabase students fetch failed, using fallback:', err);
+        console.warn('Supabase students fetch failed:', err);
       }
-      return mockStudents;
+      return [];
     },
 
     async getById(id: string): Promise<Profile | null> {
-      const mockStudents = getMockStudents();
       try {
         const client = getSupabaseServerClient();
         const { data, error } = await client
@@ -525,7 +569,6 @@ export const supabaseDb = {
           .single();
 
         if (!error && data) {
-          const mockMatch = mockStudents.find((ms) => ms.id === id || ms.email === data.email);
           return {
             id: data.id,
             email: data.email,
@@ -537,35 +580,35 @@ export const supabaseDb = {
             created_at: data.created_at,
             updated_at: data.updated_at,
             roles: ['student'],
-            academic_qualification: mockMatch?.academic_qualification,
-            enrolled_courses_count: mockMatch?.enrolled_courses_count || 1,
-            completed_courses_count: mockMatch?.completed_courses_count || 0,
-            total_spent: mockMatch?.total_spent || 2499,
+            enrolled_courses_count: 0,
+            completed_courses_count: 0,
+            total_spent: 0,
           };
         }
       } catch (err) {
         console.warn('Supabase student getById warning:', err);
       }
-      return mockStudents.find((s) => s.id === id) || null;
+      return null;
     },
 
     async updateStatus(id: string, status: 'active' | 'suspended' | 'inactive'): Promise<Profile | null> {
       try {
         const client = getSupabaseServerClient();
-        await client
+        const { data } = await client
           .from('profiles')
           .update({ status, updated_at: new Date().toISOString() })
-          .eq('id', id);
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (data) {
+          return {
+            ...data,
+            roles: ['student'],
+          };
+        }
       } catch (err) {
         console.warn('Supabase student updateStatus warning:', err);
-      }
-
-      const mockStudents = getMockStudents();
-      const student = mockStudents.find((s) => s.id === id);
-      if (student) {
-        student.status = status;
-        student.updated_at = new Date().toISOString();
-        return student;
       }
       return null;
     },
@@ -574,7 +617,6 @@ export const supabaseDb = {
   // 5. INSTRUCTORS
   instructors: {
     async list(): Promise<Profile[]> {
-      const mockInstructors = getMockInstructors();
       try {
         const client = getSupabaseServerClient();
         const { data, error } = await client
@@ -597,22 +639,19 @@ export const supabaseDb = {
               created_at: p.created_at,
               updated_at: p.updated_at,
               roles: ['instructor'],
-              assigned_courses_count: mockInstructors.find((mi) => mi.email === p.email)?.assigned_courses_count || 2,
-              active_students_count: mockInstructors.find((mi) => mi.email === p.email)?.active_students_count || 150,
-              rating: mockInstructors.find((mi) => mi.email === p.email)?.rating || 4.9,
+              assigned_courses_count: 0,
             }));
         }
       } catch (err) {
-        console.warn('Supabase instructors fetch failed, using fallback:', err);
+        console.warn('Supabase instructors fetch warning:', err);
       }
-      return mockInstructors;
+      return [];
     },
   },
 
   // 6. ENROLLMENTS
   enrollments: {
     async list(): Promise<Enrollment[]> {
-      const mockStudents = getMockStudents();
       try {
         const client = getSupabaseServerClient();
         const { data, error } = await client
@@ -624,8 +663,8 @@ export const supabaseDb = {
           `)
           .order('enrolled_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          return data.map((e) => ({
+        if (!error && data) {
+          return data.map((e: any) => ({
             id: e.id,
             student_id: e.student_id,
             course_id: e.course_id,
@@ -633,18 +672,17 @@ export const supabaseDb = {
             status: e.status || 'active',
             progress_percentage: Number(e.progress_percentage) || 0,
             enrolled_at: e.enrolled_at,
-            course: e.course || mockDb.courses.find((c) => c.id === e.course_id),
-            student: e.student || mockStudents.find((s) => s.id === e.student_id),
+            course: e.course,
+            student: e.student,
           }));
         }
       } catch (err) {
         console.warn('Supabase enrollments fetch warning:', err);
       }
-      return mockDb.enrollments;
+      return [];
     },
 
     async grant(studentId: string, courseId: string, reason: string): Promise<Enrollment> {
-      const mockStudents = getMockStudents();
       const newEnrollment: Enrollment = {
         id: `e2000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
         student_id: studentId,
@@ -653,19 +691,21 @@ export const supabaseDb = {
         status: 'active',
         progress_percentage: 0,
         enrolled_at: new Date().toISOString(),
-        course: mockDb.courses.find((c) => c.id === courseId),
-        student: mockStudents.find((s) => s.id === studentId),
       };
 
       try {
         const client = getSupabaseServerClient();
-        await client.from('enrollments').insert({
+        const { data } = await client.from('enrollments').insert({
           student_id: studentId,
           course_id: courseId,
           access_type: 'complimentary',
           status: 'active',
           progress_percentage: 0,
-        });
+        }).select().single();
+
+        if (data) {
+          newEnrollment.id = data.id;
+        }
       } catch (err) {
         console.warn('Supabase enrollment insert warning:', err);
       }
@@ -678,14 +718,9 @@ export const supabaseDb = {
       try {
         const client = getSupabaseServerClient();
         await client.from('enrollments').delete().eq('id', enrollmentId);
+        return true;
       } catch (err) {
         console.warn('Supabase enrollment delete warning:', err);
-      }
-
-      const idx = mockDb.enrollments.findIndex((e) => e.id === enrollmentId);
-      if (idx !== -1) {
-        mockDb.enrollments.splice(idx, 1);
-        return true;
       }
       return false;
     },
@@ -701,7 +736,7 @@ export const supabaseDb = {
           .select('*')
           .order('price', { ascending: true });
 
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           return data.map((p) => ({
             id: p.id,
             name: p.name,
@@ -713,7 +748,7 @@ export const supabaseDb = {
             discount_price: p.discount_price ? Number(p.discount_price) : undefined,
             is_active: p.is_active,
             features: Array.isArray(p.features) ? p.features : [],
-            active_subscribers_count: mockDb.subscriptionPlans.find((mp) => mp.slug === p.slug)?.active_subscribers_count || 120,
+            active_subscribers_count: 0,
             created_at: p.created_at || new Date().toISOString(),
             updated_at: p.updated_at || new Date().toISOString(),
           }));
@@ -721,11 +756,28 @@ export const supabaseDb = {
       } catch (err) {
         console.warn('Supabase subscription plans fetch warning:', err);
       }
-      return mockDb.subscriptionPlans;
+      return [];
     },
 
     async list(): Promise<Subscription[]> {
-      return mockDb.subscriptions;
+      try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+          .from('subscriptions')
+          .select(`
+            *,
+            plan:subscription_plans(*),
+            student:profiles(*)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) {
+          return data as Subscription[];
+        }
+      } catch (err) {
+        console.warn('Supabase subscriptions list warning:', err);
+      }
+      return [];
     },
   },
 
@@ -742,11 +794,11 @@ export const supabaseDb = {
           `)
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          return data.map((p) => ({
+        if (!error && data) {
+          return data.map((p: any) => ({
             id: p.id,
             order_id: p.order_id,
-            student_id: p.order?.student_id || 'a1000000-0000-0000-0000-000000000006',
+            student_id: p.order?.student_id || '',
             razorpay_payment_id: p.razorpay_payment_id,
             amount: Number(p.amount) || 0,
             currency: p.currency || 'INR',
@@ -761,7 +813,7 @@ export const supabaseDb = {
       } catch (err) {
         console.warn('Supabase payments fetch warning:', err);
       }
-      return mockDb.payments;
+      return [];
     },
   },
 
@@ -775,8 +827,8 @@ export const supabaseDb = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          return data.map((c) => ({
+        if (!error && data) {
+          return data.map((c: any) => ({
             id: c.id,
             code: c.code,
             description: c.description || '',
@@ -801,46 +853,44 @@ export const supabaseDb = {
       } catch (err) {
         console.warn('Supabase coupons fetch warning:', err);
       }
-      return mockDb.coupons;
+      return [];
     },
 
-    async create(couponData: Partial<Coupon>): Promise<Coupon> {
-      const minAmount = couponData.min_order_amount ?? couponData.min_order_value;
-      const maxDiscount = couponData.max_discount_amount ?? couponData.max_discount;
-
+    async create(input: Partial<Coupon>): Promise<Coupon> {
       const newCoupon: Coupon = {
-        id: `d7000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
-        code: (couponData.code || 'COUPON').toUpperCase().trim(),
-        description: couponData.description || '',
-        discount_type: couponData.discount_type || 'percentage',
-        discount_value: couponData.discount_value || 10,
-        min_order_amount: minAmount,
-        min_order_value: minAmount,
-        max_discount_amount: maxDiscount,
-        max_discount: maxDiscount,
-        max_uses: couponData.max_uses || 100,
+        id: `c2000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
+        code: (input.code || 'COUPON').toUpperCase().trim(),
+        description: input.description || '',
+        discount_type: input.discount_type || 'percentage',
+        discount_value: Number(input.discount_value) || 10,
+        min_order_amount: input.min_order_amount,
+        max_discount_amount: input.max_discount_amount,
+        max_uses: input.max_uses || 500,
         used_count: 0,
-        current_uses: 0,
-        per_student_limit: 1,
-        is_active: true,
-        start_date: new Date().toISOString(),
-        valid_from: new Date().toISOString(),
+        per_student_limit: input.per_student_limit || 1,
+        is_active: input.is_active ?? true,
+        start_date: input.start_date || input.valid_from || new Date().toISOString(),
+        valid_until: input.valid_until,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       try {
         const client = getSupabaseServerClient();
-        await client.from('coupons').insert({
+        const { data } = await client.from('coupons').insert({
           code: newCoupon.code,
           description: newCoupon.description,
           discount_type: newCoupon.discount_type,
           discount_value: newCoupon.discount_value,
-          min_order_value: minAmount,
-          max_discount: maxDiscount,
+          min_order_value: newCoupon.min_order_amount,
+          max_discount: newCoupon.max_discount_amount,
           max_uses: newCoupon.max_uses,
-          is_active: true,
-        });
+          is_active: newCoupon.is_active,
+        }).select().single();
+
+        if (data) {
+          newCoupon.id = data.id;
+        }
       } catch (err) {
         console.warn('Supabase coupon insert warning:', err);
       }
@@ -848,12 +898,25 @@ export const supabaseDb = {
       mockDb.coupons.unshift(newCoupon);
       return newCoupon;
     },
+
+    async toggleStatus(id: string): Promise<boolean> {
+      try {
+        const client = getSupabaseServerClient();
+        const { data } = await client.from('coupons').select('is_active').eq('id', id).single();
+        if (data) {
+          await client.from('coupons').update({ is_active: !data.is_active }).eq('id', id);
+          return true;
+        }
+      } catch (err) {
+        console.warn('Supabase coupon toggle warning:', err);
+      }
+      return false;
+    },
   },
 
   // 10. SUPPORT TICKETS
-  support: {
+  supportTickets: {
     async list(): Promise<SupportTicket[]> {
-      const mockStudents = getMockStudents();
       try {
         const client = getSupabaseServerClient();
         const { data, error } = await client
@@ -864,8 +927,8 @@ export const supabaseDb = {
           `)
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          return data.map((t) => ({
+        if (!error && data) {
+          return data.map((t: any) => ({
             id: t.id,
             ticket_number: t.ticket_number,
             student_id: t.student_id,
@@ -875,29 +938,23 @@ export const supabaseDb = {
             category: t.category || 'general',
             created_at: t.created_at,
             updated_at: t.updated_at,
-            student: t.student || mockStudents.find((mt) => mt.id === t.student_id),
-            messages: mockDb.supportTickets.find((mt) => mt.id === t.id)?.messages || [],
+            student: t.student,
+            messages: [],
           }));
         }
       } catch (err) {
         console.warn('Supabase support tickets fetch warning:', err);
       }
-      return mockDb.supportTickets;
+      return [];
     },
 
     async updateStatus(id: string, status: 'open' | 'in_progress' | 'resolved' | 'closed'): Promise<boolean> {
       try {
         const client = getSupabaseServerClient();
         await client.from('support_tickets').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+        return true;
       } catch (err) {
         console.warn('Supabase support ticket update warning:', err);
-      }
-
-      const ticket = mockDb.supportTickets.find((t) => t.id === id);
-      if (ticket) {
-        ticket.status = status;
-        ticket.updated_at = new Date().toISOString();
-        return true;
       }
       return false;
     },
@@ -914,8 +971,8 @@ export const supabaseDb = {
           .order('created_at', { ascending: false })
           .limit(limit);
 
-        if (!error && data && data.length > 0) {
-          return data.map((al) => ({
+        if (!error && data) {
+          return data.map((al: any) => ({
             id: al.id,
             actor_id: al.actor_id || 'u1',
             actor_name: al.actor_name || 'System Admin',
@@ -934,7 +991,7 @@ export const supabaseDb = {
       } catch (err) {
         console.warn('Supabase audit logs fetch warning:', err);
       }
-      return mockDb.auditLogs.slice(0, limit);
+      return [];
     },
 
     async log(event: {
@@ -1030,44 +1087,46 @@ export const supabaseDb = {
           query = query.eq('is_active', true);
         }
         const { data, error } = await query;
-        if (!error && data && data.length > 0) {
+        if (!error && data) {
           return data as PromotionalBanner[];
         }
       } catch (err) {
         console.warn('Supabase banners list warning:', err);
       }
-      const list = mockDb.banners || [];
-      return activeOnly ? list.filter((b) => b.is_active) : list;
+      return [];
     },
 
     async getById(id: string): Promise<PromotionalBanner | null> {
       try {
         const client = getSupabaseServerClient();
-        const { data, error } = await client.from('promotional_banners').select('*').eq('id', id).maybeSingle();
+        const { data, error } = await client.from('promotional_banners').select('*').eq('id', id).single();
         if (!error && data) {
           return data as PromotionalBanner;
         }
       } catch (err) {
         console.warn('Supabase banner getById warning:', err);
       }
-      return mockDb.banners.find((b) => b.id === id) || null;
+      return null;
     },
 
     async create(input: Partial<PromotionalBanner>): Promise<PromotionalBanner> {
+      const generatedId = `f1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`;
       const now = new Date().toISOString();
       const newBanner: PromotionalBanner = {
-        id: `ban-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`,
-        title: input.title || 'Special Promotion',
-        badge_text: input.badge_text || '',
-        callout_text: input.callout_text || '',
-        description: input.description || '',
-        cta_text: input.cta_text || 'Learn More',
-        cta_url: input.cta_url || '/courses',
+        id: generatedId,
+        title: input.title || 'New Announcement',
+        badge_text: input.badge_text,
+        callout_text: input.callout_text,
+        description: input.description,
+        cta_text: input.cta_text,
+        cta_url: input.cta_url,
         background_color: input.background_color || '#0B3473',
         text_color: input.text_color || '#FFFFFF',
-        image_url: input.image_url || '',
-        display_order: Number(input.display_order) || (mockDb.banners.length + 1),
-        is_active: input.is_active !== false,
+        image_url: input.image_url,
+        display_order: Number(input.display_order) || 1,
+        is_active: input.is_active ?? true,
+        start_date: input.start_date,
+        end_date: input.end_date,
         created_at: now,
         updated_at: now,
       };
@@ -1088,6 +1147,8 @@ export const supabaseDb = {
             image_url: newBanner.image_url,
             display_order: newBanner.display_order,
             is_active: newBanner.is_active,
+            start_date: newBanner.start_date || null,
+            end_date: newBanner.end_date || null,
           })
           .select()
           .single();
@@ -1096,7 +1157,7 @@ export const supabaseDb = {
           newBanner.id = data.id;
         }
       } catch (err) {
-        console.warn('Supabase banner create warning:', err);
+        console.warn('Supabase banner insert warning:', err);
       }
 
       mockDb.banners.push(newBanner);
@@ -1107,18 +1168,33 @@ export const supabaseDb = {
       const now = new Date().toISOString();
       try {
         const client = getSupabaseServerClient();
-        await client
+        const { data, error } = await client
           .from('promotional_banners')
-          .update({ ...updates, updated_at: now })
-          .eq('id', id);
+          .update({
+            ...(updates.title !== undefined && { title: updates.title }),
+            ...(updates.badge_text !== undefined && { badge_text: updates.badge_text }),
+            ...(updates.callout_text !== undefined && { callout_text: updates.callout_text }),
+            ...(updates.description !== undefined && { description: updates.description }),
+            ...(updates.cta_text !== undefined && { cta_text: updates.cta_text }),
+            ...(updates.cta_url !== undefined && { cta_url: updates.cta_url }),
+            ...(updates.background_color !== undefined && { background_color: updates.background_color }),
+            ...(updates.text_color !== undefined && { text_color: updates.text_color }),
+            ...(updates.image_url !== undefined && { image_url: updates.image_url }),
+            ...(updates.display_order !== undefined && { display_order: Number(updates.display_order) }),
+            ...(updates.is_active !== undefined && { is_active: updates.is_active }),
+            ...(updates.start_date !== undefined && { start_date: updates.start_date }),
+            ...(updates.end_date !== undefined && { end_date: updates.end_date }),
+            updated_at: now,
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          return data as PromotionalBanner;
+        }
       } catch (err) {
         console.warn('Supabase banner update warning:', err);
-      }
-
-      const idx = mockDb.banners.findIndex((b) => b.id === id);
-      if (idx !== -1) {
-        mockDb.banners[idx] = { ...mockDb.banners[idx], ...updates, updated_at: now };
-        return mockDb.banners[idx];
       }
       return null;
     },
@@ -1127,13 +1203,11 @@ export const supabaseDb = {
       try {
         const client = getSupabaseServerClient();
         await client.from('promotional_banners').delete().eq('id', id);
+        return true;
       } catch (err) {
         console.warn('Supabase banner delete warning:', err);
       }
-
-      const initialLen = mockDb.banners.length;
-      mockDb.banners = mockDb.banners.filter((b) => b.id !== id);
-      return mockDb.banners.length < initialLen;
+      return false;
     },
   },
 };

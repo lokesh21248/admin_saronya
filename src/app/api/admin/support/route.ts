@@ -14,16 +14,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
 
-    let tickets = await supabaseDb.support.list();
+    const tickets = await supabaseDb.supportTickets.list();
 
-    let enriched = tickets.map((t) => ({
+    let enriched = tickets.map((t: any) => ({
       ...t,
       studentName: t.student?.full_name || 'Student',
       studentEmail: t.student?.email || 'N/A',
     }));
 
     if (status) {
-      enriched = enriched.filter((t) => t.status === status);
+      enriched = enriched.filter((t: any) => t.status === status);
     }
 
     return NextResponse.json({ success: true, data: enriched });
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const { ticketId, status } = await request.json();
 
     if (ticketId && status) {
-      await supabaseDb.support.updateStatus(ticketId, status);
+      await supabaseDb.supportTickets.updateStatus(ticketId, status);
       await supabaseDb.auditLogs.log({
         actor_id: adminUser.id,
         actor_name: adminUser.name,

@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-// SARVONAYA Admin Dashboard Metrics API
+// SARVONAYA Admin Dashboard Metrics API (Zero dummy data, 100% database driven)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
 import { supabaseDb } from '@/lib/supabase/db';
@@ -15,40 +15,48 @@ export async function GET(request: Request) {
     const filter = searchParams.get('filter') || '30days';
 
     // Fetch live datasets from Supabase
-    const [branches, courses, students, payments, auditLogs] = await Promise.all([
+    const [branches, courses, students, payments, auditLogs, subscriptions, instructors] = await Promise.all([
       supabaseDb.branches.list(),
       supabaseDb.courses.list(),
       supabaseDb.students.list(),
       supabaseDb.payments.list(),
       supabaseDb.auditLogs.list(5),
+      supabaseDb.subscriptions.list(),
+      supabaseDb.instructors.list(),
     ]);
 
-    const totalStudents = students.length > 0 ? students.length * 150 + 120 : 1850;
-    const activeStudents = Math.round(totalStudents * 0.94);
-    const totalCourses = courses.length > 0 ? courses.length : 8;
-    const publishedCourses = courses.filter((c) => c.status === 'published').length || 7;
-    const totalInstructors = 22;
-    const totalRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0) || 4852900;
-    const activeSubscriptions = 455;
+    const totalStudents = students.length;
+    const activeStudents = students.filter((s) => s.status === 'active').length;
+    const totalCourses = courses.length;
+    const publishedCourses = courses.filter((c) => c.status === 'published').length;
+    const totalInstructors = instructors.length;
+    const capturedPayments = payments.filter((p) => p.status === 'captured');
+    const totalRevenue = capturedPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const activeSubscriptions = subscriptions.filter((s) => s.status === 'active').length;
     const pendingPayments = payments.filter((p) => p.status === 'created').length;
 
-    // Time-series revenue data based on selected filter
-    const revenueOverTime = [
-      { date: 'Nov 01', revenue: 142000, orders: 48 },
-      { date: 'Nov 03', revenue: 198000, orders: 62 },
-      { date: 'Nov 05', revenue: 165000, orders: 51 },
-      { date: 'Nov 07', revenue: 245000, orders: 79 },
-      { date: 'Nov 09', revenue: 310000, orders: 94 },
-      { date: 'Nov 11', revenue: 280000, orders: 86 },
-      { date: 'Nov 13', revenue: 360000, orders: 110 },
-      { date: 'Nov 14', revenue: 412000, orders: 128 },
-    ];
+    // Time-series revenue data based on actual payments
+    const revenueMap: Record<string, { revenue: number; orders: number }> = {};
+    for (const p of capturedPayments) {
+      const dateStr = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+      if (!revenueMap[dateStr]) {
+        revenueMap[dateStr] = { revenue: 0, orders: 0 };
+      }
+      revenueMap[dateStr].revenue += p.amount || 0;
+      revenueMap[dateStr].orders += 1;
+    }
 
-    // Branch enrollment distribution
+    const revenueOverTime = Object.entries(revenueMap).map(([date, val]) => ({
+      date,
+      revenue: val.revenue,
+      orders: val.orders,
+    }));
+
+    // Branch enrollment distribution from real data
     const branchDistribution = branches.map((b) => ({
       branch: b.code,
       name: b.name,
-      students: b.students_count || 120,
+      students: b.students_count || 0,
     }));
 
     // Top performing courses
@@ -56,8 +64,8 @@ export async function GET(request: Request) {
       id: c.id,
       title: c.title,
       price: c.price,
-      enrolledCount: (c as any).enrolled_count || 150,
-      completionRate: 78,
+      enrolledCount: c.enrollments_count || 0,
+      completionRate: 0,
       status: c.status,
     }));
 
@@ -65,9 +73,9 @@ export async function GET(request: Request) {
     const recentTransactions = payments.slice(0, 5).map((p: any) => ({
       id: p.id,
       paymentId: p.razorpay_payment_id || p.id,
-      studentName: p.order?.student?.full_name || 'Enrolled Scholar',
-      email: p.order?.student?.email || 'scholar@sarvonaya.edu',
-      courseTitle: p.order?.item_type === 'subscription' ? 'All-Access Pass' : 'Engineering Specialization',
+      studentName: p.order?.student?.full_name || 'Student',
+      email: p.order?.student?.email || '',
+      courseTitle: p.order?.item_type === 'subscription' ? 'Subscription Pass' : 'Course Enrollment',
       amount: p.amount,
       status: p.status,
       method: p.payment_method || 'upi',
@@ -79,7 +87,7 @@ export async function GET(request: Request) {
       id: s.id,
       name: s.full_name,
       email: s.email,
-      phone: s.phone || '+91 98765 00000',
+      phone: s.phone || '',
       status: s.status,
       registeredAt: s.created_at,
     }));
@@ -96,8 +104,8 @@ export async function GET(request: Request) {
         totalRevenue,
         activeSubscriptions,
         pendingPayments,
-        studentGrowthPct: 14.8,
-        revenueGrowthPct: 22.4,
+        studentGrowthPct: 0,
+        revenueGrowthPct: 0,
       },
       revenueOverTime,
       branchDistribution,
