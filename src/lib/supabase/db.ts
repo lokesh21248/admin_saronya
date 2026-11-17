@@ -16,6 +16,7 @@ import {
   AuditLog,
   PlatformSetting,
   PromotionalBanner,
+  HeroBanner,
 } from '@/types/database';
 
 export const supabaseDb = {
@@ -1077,78 +1078,145 @@ export const supabaseDb = {
     },
   },
 
-  // 13. PROMOTIONAL BANNERS (FOR CUSTOMER WEBSITE)
+  // 13. HOMEPAGE HERO BANNERS (FOR CUSTOMER WEBSITE)
   banners: {
-    async list(activeOnly: boolean = false): Promise<PromotionalBanner[]> {
+    async list(activeOnly: boolean = false): Promise<HeroBanner[]> {
+      const client = getSupabaseServerClient();
+      // 1. Query dedicated public.banners
       try {
-        const client = getSupabaseServerClient();
+        let query = client.from('banners').select('*').order('display_order', { ascending: true });
+        if (activeOnly) {
+          query = query.eq('is_active', true);
+        }
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+          return data.map((b: any) => ({
+            id: b.id,
+            title: b.title,
+            subtitle: b.subtitle || '',
+            image_url: b.image_url || '',
+            mobile_image_url: b.mobile_image_url || '',
+            button_text: b.button_text || 'Explore Courses',
+            button_link: b.button_link || '/courses',
+            is_active: b.is_active ?? true,
+            display_order: Number(b.display_order) || 1,
+            created_at: b.created_at,
+            updated_at: b.updated_at,
+          }));
+        }
+      } catch (err) {
+        console.warn('Querying banners table notice:', err);
+      }
+
+      // 2. Fallback adapter to promotional_banners
+      try {
         let query = client.from('promotional_banners').select('*').order('display_order', { ascending: true });
         if (activeOnly) {
           query = query.eq('is_active', true);
         }
         const { data, error } = await query;
         if (!error && data) {
-          return data as PromotionalBanner[];
+          return data.map((b: any) => ({
+            id: b.id,
+            title: b.title,
+            subtitle: b.description || b.callout_text || '',
+            image_url: b.image_url || '/images/mockup/hero-student-3d.png',
+            mobile_image_url: b.mobile_image_url || '/images/mockup/hero-mobile-banner-2x.png',
+            button_text: b.cta_text || 'Explore Courses',
+            button_link: b.cta_url || '/courses',
+            is_active: b.is_active ?? true,
+            display_order: Number(b.display_order) || 1,
+            created_at: b.created_at,
+            updated_at: b.updated_at,
+          }));
         }
       } catch (err) {
-        console.warn('Supabase banners list warning:', err);
+        console.warn('Fallback promotional_banners notice:', err);
       }
       return [];
     },
 
-    async getById(id: string): Promise<PromotionalBanner | null> {
+    async getById(id: string): Promise<HeroBanner | null> {
+      const client = getSupabaseServerClient();
       try {
-        const client = getSupabaseServerClient();
+        const { data, error } = await client.from('banners').select('*').eq('id', id).single();
+        if (!error && data) return data as HeroBanner;
+      } catch (err) {}
+      try {
         const { data, error } = await client.from('promotional_banners').select('*').eq('id', id).single();
         if (!error && data) {
-          return data as PromotionalBanner;
+          return {
+            id: data.id,
+            title: data.title,
+            subtitle: data.description || data.callout_text || '',
+            image_url: data.image_url || '',
+            mobile_image_url: data.mobile_image_url || '',
+            button_text: data.cta_text || 'Explore Courses',
+            button_link: data.cta_url || '/courses',
+            is_active: data.is_active,
+            display_order: data.display_order,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+          };
         }
-      } catch (err) {
-        console.warn('Supabase banner getById warning:', err);
-      }
+      } catch (err) {}
       return null;
     },
 
-    async create(input: Partial<PromotionalBanner>): Promise<PromotionalBanner> {
-      const generatedId = `f1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`;
+    async create(input: Partial<HeroBanner>): Promise<HeroBanner> {
+      const client = getSupabaseServerClient();
+      const generatedId = `b0000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`;
       const now = new Date().toISOString();
-      const newBanner: PromotionalBanner = {
-        id: generatedId,
-        title: input.title || 'New Announcement',
-        badge_text: input.badge_text,
-        callout_text: input.callout_text,
-        description: input.description,
-        cta_text: input.cta_text,
-        cta_url: input.cta_url,
-        background_color: input.background_color || '#0B3473',
-        text_color: input.text_color || '#FFFFFF',
-        image_url: input.image_url,
-        display_order: Number(input.display_order) || 1,
+
+      const newBanner: HeroBanner = {
+        id: input.id || generatedId,
+        title: input.title || 'Learn Anytime, Anywhere',
+        subtitle: input.subtitle || 'Upgrade your skills with expert-led online courses and take your career to the next level.',
+        image_url: input.image_url || '/images/mockup/hero-student-3d.png',
+        mobile_image_url: input.mobile_image_url || '/images/mockup/hero-mobile-banner-2x.png',
+        button_text: input.button_text || 'Explore Courses',
+        button_link: input.button_link || '/courses',
         is_active: input.is_active ?? true,
-        start_date: input.start_date,
-        end_date: input.end_date,
+        display_order: Number(input.display_order) || 1,
         created_at: now,
         updated_at: now,
       };
 
+      // 1. Try insert into banners
       try {
-        const client = getSupabaseServerClient();
+        const { data, error } = await client
+          .from('banners')
+          .insert({
+            title: newBanner.title,
+            subtitle: newBanner.subtitle,
+            image_url: newBanner.image_url,
+            mobile_image_url: newBanner.mobile_image_url,
+            button_text: newBanner.button_text,
+            button_link: newBanner.button_link,
+            is_active: newBanner.is_active,
+            display_order: newBanner.display_order,
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          return data as HeroBanner;
+        }
+      } catch (err) {}
+
+      // 2. Also save to promotional_banners as adapter
+      try {
         const { data, error } = await client
           .from('promotional_banners')
           .insert({
             title: newBanner.title,
-            badge_text: newBanner.badge_text,
-            callout_text: newBanner.callout_text,
-            description: newBanner.description,
-            cta_text: newBanner.cta_text,
-            cta_url: newBanner.cta_url,
-            background_color: newBanner.background_color,
-            text_color: newBanner.text_color,
+            description: newBanner.subtitle,
+            callout_text: newBanner.subtitle?.substring(0, 100),
             image_url: newBanner.image_url,
-            display_order: newBanner.display_order,
+            cta_text: newBanner.button_text,
+            cta_url: newBanner.button_link,
             is_active: newBanner.is_active,
-            start_date: newBanner.start_date || null,
-            end_date: newBanner.end_date || null,
+            display_order: newBanner.display_order,
           })
           .select()
           .single();
@@ -1156,34 +1224,27 @@ export const supabaseDb = {
         if (!error && data) {
           newBanner.id = data.id;
         }
-      } catch (err) {
-        console.warn('Supabase banner insert warning:', err);
-      }
+      } catch (err) {}
 
-      mockDb.banners.push(newBanner);
       return newBanner;
     },
 
-    async update(id: string, updates: Partial<PromotionalBanner>): Promise<PromotionalBanner | null> {
+    async update(id: string, updates: Partial<HeroBanner>): Promise<HeroBanner | null> {
+      const client = getSupabaseServerClient();
       const now = new Date().toISOString();
+
       try {
-        const client = getSupabaseServerClient();
         const { data, error } = await client
-          .from('promotional_banners')
+          .from('banners')
           .update({
             ...(updates.title !== undefined && { title: updates.title }),
-            ...(updates.badge_text !== undefined && { badge_text: updates.badge_text }),
-            ...(updates.callout_text !== undefined && { callout_text: updates.callout_text }),
-            ...(updates.description !== undefined && { description: updates.description }),
-            ...(updates.cta_text !== undefined && { cta_text: updates.cta_text }),
-            ...(updates.cta_url !== undefined && { cta_url: updates.cta_url }),
-            ...(updates.background_color !== undefined && { background_color: updates.background_color }),
-            ...(updates.text_color !== undefined && { text_color: updates.text_color }),
+            ...(updates.subtitle !== undefined && { subtitle: updates.subtitle }),
             ...(updates.image_url !== undefined && { image_url: updates.image_url }),
-            ...(updates.display_order !== undefined && { display_order: Number(updates.display_order) }),
+            ...(updates.mobile_image_url !== undefined && { mobile_image_url: updates.mobile_image_url }),
+            ...(updates.button_text !== undefined && { button_text: updates.button_text }),
+            ...(updates.button_link !== undefined && { button_link: updates.button_link }),
             ...(updates.is_active !== undefined && { is_active: updates.is_active }),
-            ...(updates.start_date !== undefined && { start_date: updates.start_date }),
-            ...(updates.end_date !== undefined && { end_date: updates.end_date }),
+            ...(updates.display_order !== undefined && { display_order: Number(updates.display_order) }),
             updated_at: now,
           })
           .eq('id', id)
@@ -1191,23 +1252,56 @@ export const supabaseDb = {
           .single();
 
         if (!error && data) {
-          return data as PromotionalBanner;
+          return data as HeroBanner;
         }
-      } catch (err) {
-        console.warn('Supabase banner update warning:', err);
-      }
+      } catch (err) {}
+
+      try {
+        const { data, error } = await client
+          .from('promotional_banners')
+          .update({
+            ...(updates.title !== undefined && { title: updates.title }),
+            ...(updates.subtitle !== undefined && { description: updates.subtitle, callout_text: updates.subtitle?.substring(0, 100) }),
+            ...(updates.image_url !== undefined && { image_url: updates.image_url }),
+            ...(updates.button_text !== undefined && { cta_text: updates.button_text }),
+            ...(updates.button_link !== undefined && { cta_url: updates.button_link }),
+            ...(updates.is_active !== undefined && { is_active: updates.is_active }),
+            ...(updates.display_order !== undefined && { display_order: Number(updates.display_order) }),
+            updated_at: now,
+          })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          return {
+            id: data.id,
+            title: data.title,
+            subtitle: data.description || data.callout_text || '',
+            image_url: data.image_url || '',
+            mobile_image_url: data.mobile_image_url || '',
+            button_text: data.cta_text || 'Explore Courses',
+            button_link: data.cta_url || '/courses',
+            is_active: data.is_active,
+            display_order: data.display_order,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+          };
+        }
+      } catch (err) {}
+
       return null;
     },
 
     async delete(id: string): Promise<boolean> {
+      const client = getSupabaseServerClient();
       try {
-        const client = getSupabaseServerClient();
+        await client.from('banners').delete().eq('id', id);
+      } catch (err) {}
+      try {
         await client.from('promotional_banners').delete().eq('id', id);
-        return true;
-      } catch (err) {
-        console.warn('Supabase banner delete warning:', err);
-      }
-      return false;
+      } catch (err) {}
+      return true;
     },
   },
 };

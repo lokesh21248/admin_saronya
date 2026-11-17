@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-// SARVONAYA Admin Promotional Banners API (GET & POST)
+// SARVONAYA Admin Hero Banner API (GET & POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
 import { supabaseDb } from '@/lib/supabase/db';
@@ -33,19 +33,16 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     if (!body.title?.trim()) {
-      return NextResponse.json({ success: false, error: 'Banner title/headline is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Banner heading/title is required' }, { status: 400 });
     }
 
     const newBanner = await supabaseDb.banners.create({
       title: body.title.trim(),
-      badge_text: body.badge_text?.trim() || '',
-      callout_text: body.callout_text?.trim() || '',
-      description: body.description?.trim() || '',
-      cta_text: body.cta_text?.trim() || 'Explore Now',
-      cta_url: body.cta_url?.trim() || '/subscriptions',
-      background_color: body.background_color || '#0B3473',
-      text_color: body.text_color || '#FFFFFF',
+      subtitle: body.subtitle?.trim() || body.description?.trim() || '',
       image_url: body.image_url || '',
+      mobile_image_url: body.mobile_image_url || '',
+      button_text: body.button_text?.trim() || body.cta_text?.trim() || 'Explore Courses',
+      button_link: body.button_link?.trim() || body.cta_url?.trim() || '/courses',
       display_order: Number(body.display_order) || 1,
       is_active: body.is_active !== false,
     });
@@ -53,20 +50,20 @@ export async function POST(request: Request) {
     await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
       actor_name: adminUser.name,
-      action: 'BANNER_CREATED',
+      action: 'HERO_BANNER_CREATED',
       target_type: 'banner',
       target_id: newBanner.id,
       target_name: newBanner.title,
       details: {
-        badge: newBanner.badge_text,
-        cta_url: newBanner.cta_url,
+        title: newBanner.title,
+        button_link: newBanner.button_link,
         order: newBanner.display_order,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Promotional banner created successfully',
+      message: 'Homepage hero banner created successfully',
       data: newBanner,
     });
   } catch (error) {

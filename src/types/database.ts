@@ -395,6 +395,22 @@ export interface NotificationRecord {
   created_at: string;
 }
 
+export interface HeroBanner {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image_url?: string;
+  mobile_image_url?: string;
+  button_text?: string;
+  button_link?: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type Banner = HeroBanner;
+
 export interface PromotionalBanner {
   id: string;
   title: string;
@@ -406,6 +422,7 @@ export interface PromotionalBanner {
   background_color?: string;
   text_color?: string;
   image_url?: string;
+  mobile_image_url?: string;
   display_order: number;
   is_active: boolean;
   start_date?: string;

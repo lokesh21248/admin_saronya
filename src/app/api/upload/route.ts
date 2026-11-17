@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const folder = (formData.get('folder') as string) || 'uploads';
+    const bucket = (formData.get('bucket') as string) || (folder === 'banners' ? 'banners' : 'sarvonaya-media');
 
     if (!file) {
       return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     if (supabase) {
       try {
         const { data, error } = await supabase.storage
-          .from('sarvonaya-media')
+          .from(bucket)
           .upload(storagePath, buffer, {
             contentType: file.type,
             upsert: true,
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 
         if (!error && data) {
           const { data: pub } = supabase.storage
-            .from('sarvonaya-media')
+            .from(bucket)
             .getPublicUrl(storagePath);
 
           return NextResponse.json({

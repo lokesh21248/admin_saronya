@@ -12,6 +12,7 @@ interface FileUploadProps {
   label?: string;
   description?: string;
   folder?: string;
+  bucket?: string;
   maxSizeMB?: number;
   allowUrlFallback?: boolean;
 }
@@ -23,6 +24,7 @@ export function FileUpload({
   label,
   description,
   folder = 'uploads',
+  bucket,
   maxSizeMB = 25,
   allowUrlFallback = true,
 }: FileUploadProps) {
@@ -52,6 +54,7 @@ export function FileUpload({
       const formData = new FormData();
       formData.append('file', file);
       formData.append('folder', folder);
+      if (bucket) formData.append('bucket', bucket);
 
       // Simulated initial progress for immediate responsiveness
       const interval = setInterval(() => {
