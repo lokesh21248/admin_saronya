@@ -65,12 +65,16 @@ export default function CoursesListPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus }),
       });
-      if (res.ok) {
+      const data = await res.json();
+      if (res.ok && data.success) {
         setPublishTarget(null);
         loadCourses();
+      } else {
+        alert(data.error || 'Failed to change publish status');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to change publish status:', err);
+      alert('Error updating publication status: ' + (err.message || 'Network error'));
     }
   }
 

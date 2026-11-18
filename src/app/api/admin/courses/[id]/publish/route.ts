@@ -24,7 +24,7 @@ export async function POST(
     }
 
     // Validation checks before publishing
-    if (targetStatus === 'published' && (!course.title || !course.price)) {
+    if (targetStatus === 'published' && (!course.title || course.price === undefined || course.price === null || course.price < 0)) {
       return NextResponse.json(
         { success: false, error: 'Course must possess a title and valid price before publishing' },
         { status: 422 }
@@ -35,6 +35,13 @@ export async function POST(
       status: targetStatus,
       published_at: targetStatus === 'published' ? new Date().toISOString() : undefined,
     });
+
+    if (!updated) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to update publication status in database' },
+        { status: 500 }
+      );
+    }
 
     await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,

@@ -17,29 +17,28 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
+
+    const client = getSupabaseServerClient();
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (body.title !== undefined) updatePayload.title = body.title;
+    if (body.description !== undefined) updatePayload.description = body.description;
+    if (body.sort_order !== undefined) updatePayload.sort_order = body.sort_order;
+
+    const { data: updated } = await client
+      .from('course_sections')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
     const section = mockDb.sections.find((s) => s.id === id);
-
-    if (!section) {
-      return NextResponse.json({ success: false, error: 'Section not found' }, { status: 404 });
+    if (section) {
+      Object.assign(section, body, { updated_at: new Date().toISOString() });
     }
 
-    Object.assign(section, body, { updated_at: new Date().toISOString() });
-
-    try {
-      const client = getSupabaseServerClient();
-      await client
-        .from('course_sections')
-        .update({
-          ...(body.title && { title: body.title }),
-          ...(body.sort_order !== undefined && { sort_order: body.sort_order }),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-    } catch (err) {
-      console.warn('Supabase section update warning:', err);
-    }
-
-    return NextResponse.json({ success: true, data: section });
+    return NextResponse.json({ success: true, data: updated || section || { id, ...body } });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to update section' }, { status: 500 });
   }

@@ -47,6 +47,11 @@ export default function CourseCreationWizardPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
 
+  // Dynamic Metadata from Supabase
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [instructors, setInstructors] = useState<{ id: string; full_name: string; bio?: string }[]>([]);
+  const [branches, setBranches] = useState<{ id: string; code: string; name: string }[]>([]);
+
   // Form State
   const [formData, setFormData] = useState({
     title: '',
@@ -60,8 +65,8 @@ export default function CourseCreationWizardPage() {
     preview_mux_playback_id: '',
     initial_lesson_video_asset_id: '',
     selected_branches: ['CSE', 'AIML', 'IT'],
-    category_id: 'c6',
-    primary_instructor_id: 'u2',
+    category_id: '',
+    primary_instructor_id: '',
     price: 3499,
     discount_price: 2499,
     is_subscription_eligible: true,
@@ -72,6 +77,35 @@ export default function CourseCreationWizardPage() {
     has_assignments: true,
     status: 'draft',
   });
+
+  React.useEffect(() => {
+    async function loadMetadata() {
+      try {
+        const [catRes, instRes, branchRes] = await Promise.all([
+          fetch('/api/admin/categories').then((r) => r.json()).catch(() => ({ data: [] })),
+          fetch('/api/admin/instructors').then((r) => r.json()).catch(() => ({ data: [] })),
+          fetch('/api/admin/branches').then((r) => r.json()).catch(() => ({ data: [] })),
+        ]);
+
+        const cats = catRes.data || [];
+        const insts = instRes.data || [];
+        const brs = branchRes.data || [];
+
+        setCategories(cats);
+        setInstructors(insts);
+        setBranches(brs);
+
+        setFormData((prev) => ({
+          ...prev,
+          category_id: prev.category_id || cats[0]?.id || '',
+          primary_instructor_id: prev.primary_instructor_id || insts[0]?.id || '',
+        }));
+      } catch (err) {
+        console.warn('Failed to load wizard metadata:', err);
+      }
+    }
+    loadMetadata();
+  }, []);
 
   function updateField(key: string, value: any) {
     setFormData((prev) => ({ ...prev, [key]: value }));
@@ -283,17 +317,20 @@ export default function CourseCreationWizardPage() {
                 Select the target academic branches permitted to access or recommended this course.
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                {[
-                  { code: 'CSE', label: 'Computer Science' },
-                  { code: 'AIML', label: 'AI & Machine Learning' },
-                  { code: 'ECE', label: 'Electronics & Comm' },
-                  { code: 'EEE', label: 'Electrical & Electronics' },
-                  { code: 'IT', label: 'Information Tech' },
-                  { code: 'MECH', label: 'Mechanical' },
-                  { code: 'CIVIL', label: 'Civil' },
-                  { code: 'BCA', label: 'BCA' },
-                  { code: 'MCA', label: 'MCA' },
-                ].map((b) => {
+                {(branches.length > 0
+                  ? branches.map((b) => ({ code: b.code, label: b.name }))
+                  : [
+                      { code: 'CSE', label: 'Computer Science' },
+                      { code: 'AIML', label: 'AI & Machine Learning' },
+                      { code: 'ECE', label: 'Electronics & Comm' },
+                      { code: 'EEE', label: 'Electrical & Electronics' },
+                      { code: 'IT', label: 'Information Tech' },
+                      { code: 'MECH', label: 'Mechanical' },
+                      { code: 'CIVIL', label: 'Civil' },
+                      { code: 'BCA', label: 'BCA' },
+                      { code: 'MCA', label: 'MCA' },
+                    ]
+                ).map((b) => {
                   const selected = formData.selected_branches.includes(b.code);
                   return (
                     <button
@@ -326,13 +363,20 @@ export default function CourseCreationWizardPage() {
                   onChange={(e) => updateField('category_id', e.target.value)}
                   className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs"
                 >
-                  <option value="c6">Next.js</option>
-                  <option value="c8">Artificial Intelligence</option>
-                  <option value="c4">Full Stack Development</option>
-                  <option value="c14">VLSI</option>
-                  <option value="c12">DevOps</option>
-                  <option value="c2">Python</option>
-                  <option value="c13">Embedded Systems</option>
+                  {categories.length > 0 ? (
+                    categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="">Select Category...</option>
+                      <option value="python">Python</option>
+                      <option value="nextjs">Next.js</option>
+                      <option value="react">React</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>
@@ -342,9 +386,15 @@ export default function CourseCreationWizardPage() {
                   onChange={(e) => updateField('primary_instructor_id', e.target.value)}
                   className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs"
                 >
-                  <option value="u2">Prof. Ananya Iyer (IIT Madras Fellow - Systems & Cloud)</option>
-                  <option value="u3">Vikram Singh (Principal AI Engineer)</option>
-                  <option value="u1">Dr. Rajesh Sharma (Platform Director)</option>
+                  {instructors.length > 0 ? (
+                    instructors.map((ins) => (
+                      <option key={ins.id} value={ins.id}>
+                        {ins.full_name} {ins.bio ? `(${ins.bio})` : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">Sarvonaya Academic Faculty</option>
+                  )}
                 </select>
               </div>
             </div>

@@ -1,7 +1,9 @@
+export const dynamic = 'force-dynamic';
 // SARVONAYA Lessons Creation API (POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
 import { mockDb } from '@/lib/db/mock-db';
+import { getSupabaseServerClient } from '@/lib/supabase/admin';
 
 export async function POST(
   request: Request,
@@ -29,16 +31,45 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Lesson title is required' }, { status: 400 });
     }
 
-    const existingCount = mockDb.lessons.filter((l) => l.section_id === id).length;
-    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    const client = getSupabaseServerClient();
+    const { data: existing } = await client
+      .from('lessons')
+      .select('sort_order')
+      .eq('section_id', id);
 
-    const newLesson = {
+    const sortOrder = (existing?.length || 0) + 1;
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') || `lesson-${Date.now()}`;
+
+    const { data: inserted, error } = await client
+      .from('lessons')
+      .insert({
+        section_id: id,
+        title: title.trim(),
+        slug,
+        lesson_type: lesson_type || 'video',
+        sort_order: sortOrder,
+        duration_minutes: Number(duration_minutes) || 15,
+        is_preview: Boolean(is_preview),
+        is_published: true,
+        mux_playback_id: mux_playback_id || null,
+        mux_asset_id: mux_asset_id || null,
+        resource_url: resource_url || null,
+      })
+      .select()
+      .single();
+
+    if (!error && inserted) {
+      mockDb.lessons.push(inserted);
+      return NextResponse.json({ success: true, data: inserted });
+    }
+
+    const fallbackLesson = {
       id: `les-${Date.now()}`,
       section_id: id,
       title: title.trim(),
       slug,
       lesson_type: lesson_type || 'video',
-      sort_order: existingCount + 1,
+      sort_order: sortOrder,
       duration_minutes: Number(duration_minutes) || 15,
       is_preview: Boolean(is_preview),
       is_published: true,
@@ -50,11 +81,9 @@ export async function POST(
       updated_at: new Date().toISOString(),
     };
 
-    mockDb.lessons.push(newLesson);
-
-    return NextResponse.json({ success: true, data: newLesson });
+    mockDb.lessons.push(fallbackLesson);
+    return NextResponse.json({ success: true, data: fallbackLesson });
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to create lesson' }, { status: 500 });
   }
 }
-

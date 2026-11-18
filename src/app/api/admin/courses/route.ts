@@ -85,8 +85,9 @@ export async function POST(request: Request) {
       data: newCourse,
       curriculum: curriculum && { sectionId: curriculum.section.id, lessonId: curriculum.lesson.id },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Courses POST Error:', error);
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+    const msg = error?.message || 'Internal Server Error';
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
