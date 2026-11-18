@@ -425,6 +425,7 @@ export default function WebsiteHeroBannersPage() {
                           src={currentPreviewBanner.image_url}
                           alt={currentPreviewBanner.title}
                           fill
+                          unoptimized
                           sizes="(max-width: 768px) 288px, 320px"
                           className="object-contain"
                           onError={(e) => {
@@ -490,6 +491,7 @@ export default function WebsiteHeroBannersPage() {
                           src={currentPreviewBanner.mobile_image_url}
                           alt={currentPreviewBanner.title}
                           fill
+                          unoptimized
                           sizes="(max-width: 640px) 340px, 380px"
                           className="object-cover"
                         />
@@ -636,6 +638,7 @@ export default function WebsiteHeroBannersPage() {
                               src={b.image_url}
                               alt="Desktop Banner"
                               fill
+                              unoptimized
                               sizes="56px"
                               className="object-contain p-0.5"
                             />
@@ -655,6 +658,7 @@ export default function WebsiteHeroBannersPage() {
                               src={b.mobile_image_url}
                               alt="Mobile Banner"
                               fill
+                              unoptimized
                               sizes="28px"
                               className="object-cover"
                             />
