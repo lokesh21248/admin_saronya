@@ -32,12 +32,12 @@ export async function GET(request: Request) {
       students = students.filter((s) => s.status === status);
     }
 
-    const branches = await supabaseDb.branches.list();
-
-    const enriched = students.map((s, idx) => {
-      const branchCode = branches[idx % branches.length]?.code || 'CSE';
-      const colleges = ['IIT Madras', 'NIT Trichy', 'Anna University', 'PSG Tech', 'BITS Pilani', 'IIIT Hyderabad'];
-      const college = colleges[idx % colleges.length];
+    const enriched = students.map((s) => {
+      const qual = (s as any).academic_qualification || (s as any).academic_qualifications?.[0];
+      const branchCode = qual?.branch?.code || qual?.branch?.branch_code || 'General';
+      const college = qual?.college_name || 'Academic Institution';
+      const degree = qual?.degree || 'B.Tech / B.E.';
+      const passedOutYear = qual?.passed_out_year || new Date(s.created_at).getFullYear();
 
       return {
         id: s.id,
@@ -47,11 +47,11 @@ export async function GET(request: Request) {
         status: s.status,
         branch: branchCode,
         college,
-        degree: 'B.Tech / B.E.',
-        passedOutYear: 2026 - (idx % 3),
-        enrolledCoursesCount: (s as any).enrolled_courses_count || (idx === 0 ? 3 : 1),
-        subscriptionStatus: (s as any).subscription_status || (idx % 2 === 0 ? 'active' : 'None'),
-        totalPaid: (s as any).total_spent || (idx * 1500 + 2499),
+        degree,
+        passedOutYear,
+        enrolledCoursesCount: (s as any).enrolled_courses_count || 0,
+        subscriptionStatus: (s as any).subscription_status || 'active',
+        totalPaid: (s as any).total_spent || 0,
         registeredAt: s.created_at,
       };
     });

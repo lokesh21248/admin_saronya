@@ -621,9 +621,9 @@ export const supabaseDb = {
           .from('profiles')
           .select(`
             *,
-            academic_qualifications (
+            academic_qualifications:academic_qualifications!academic_qualifications_profile_id_fkey (
               *,
-              academic_branches (*)
+              branch:academic_branches (*)
             )
           `)
           .order('created_at', { ascending: false });
@@ -641,6 +641,7 @@ export const supabaseDb = {
             updated_at: p.updated_at,
             roles: ['student'],
             academic_qualification: p.academic_qualifications?.[0],
+            academic_qualifications: p.academic_qualifications,
             enrolled_courses_count: 0,
             completed_courses_count: 0,
             total_spent: 0,
