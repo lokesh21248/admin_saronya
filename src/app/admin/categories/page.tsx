@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import Image from 'next/image';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,20 +16,33 @@ import {
   Plus,
   Edit2,
   Power,
-  BookOpen,
-  ArrowUpDown,
   Trash2,
+  RefreshCw,
+  ImageIcon,
 } from 'lucide-react';
 
 export default function CategoriesManagementPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Create Modal
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('Code2');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit Modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editIcon, setEditIcon] = useState('Code2');
+  const [editThumbnailUrl, setEditThumbnailUrl] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Delete Target
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<any>(null);
   const [deletingCategory, setDeletingCategory] = useState(false);
 
@@ -37,7 +51,7 @@ export default function CategoriesManagementPage() {
       setLoading(true);
       const res = await fetch('/api/admin/categories');
       const json = await res.json();
-      if (json.success) {
+      if (json.success && Array.isArray(json.data)) {
         setCategories(json.data);
       }
     } catch (err) {
@@ -59,19 +73,68 @@ export default function CategoriesManagementPage() {
       const res = await fetch('/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, icon, thumbnail_url: thumbnailUrl }),
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim(),
+          icon,
+          thumbnail_url: thumbnailUrl.trim() || null,
+        }),
       });
-      if (res.ok) {
+      const json = await res.json();
+      if (res.ok && json.success) {
         setAddModalOpen(false);
         setName('');
         setDescription('');
         setThumbnailUrl('');
-        loadCategories();
+        await loadCategories();
+      } else {
+        alert(json.error || 'Failed to create category');
       }
     } catch (err) {
       console.error('Error adding category:', err);
+      alert('Error creating category');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function handleOpenEdit(cat: any) {
+    setEditingCategory(cat);
+    setEditName(cat.name || '');
+    setEditDescription(cat.description || '');
+    setEditIcon(cat.icon || 'Code2');
+    setEditThumbnailUrl(cat.thumbnail_url || '');
+    setEditModalOpen(true);
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingCategory || !editName.trim()) return;
+    try {
+      setEditSubmitting(true);
+      const res = await fetch(`/api/admin/categories/${editingCategory.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDescription.trim(),
+          icon: editIcon,
+          thumbnail_url: editThumbnailUrl.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setEditModalOpen(false);
+        setEditingCategory(null);
+        await loadCategories();
+      } else {
+        alert(json.error || 'Failed to update category');
+      }
+    } catch (err) {
+      console.error('Failed to update category:', err);
+      alert('Error updating category');
+    } finally {
+      setEditSubmitting(false);
     }
   }
 
@@ -98,7 +161,7 @@ export default function CategoriesManagementPage() {
       const json = await res.json();
       if (res.ok && json.success) {
         setDeleteCategoryTarget(null);
-        loadCategories();
+        await loadCategories();
       } else {
         alert(json.error || 'Failed to delete category');
       }
@@ -115,30 +178,51 @@ export default function CategoriesManagementPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Category Taxonomy
-          </h1>
-          <p className="text-sm text-slate-500">
-            Manage course subject categories, hierarchy, icons and public catalog grouping.
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Category Taxonomy &amp; Icons
+            </h1>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              Live Supabase Sync
+            </span>
+          </div>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage course domains, upload custom badge images, configure titles, and organize student homepage groupings.
           </p>
         </div>
-        <Button
-          onClick={() => setAddModalOpen(true)}
-          className="gap-2 bg-[#0B3473] hover:bg-[#082654]"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Category</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadCategories}
+            className="gap-1 text-slate-600 border-slate-200 hover:bg-slate-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button
+            onClick={() => {
+              setName('');
+              setDescription('');
+              setThumbnailUrl('');
+              setAddModalOpen(true);
+            }}
+            className="gap-2 bg-[#0B3473] hover:bg-[#082654] text-white"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Category</span>
+          </Button>
+        </div>
       </div>
 
       {/* Categories Grid Table */}
-      <Card>
+      <Card className="border-slate-200 shadow-sm bg-white">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50/75 text-xs font-semibold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-6 py-3.5">Category</th>
+                  <th className="px-6 py-3.5">Category &amp; Image</th>
                   <th className="px-4 py-3.5">Courses</th>
                   <th className="px-4 py-3.5">Status</th>
                   <th className="px-6 py-3.5 text-right">Actions</th>
@@ -148,7 +232,14 @@ export default function CategoriesManagementPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={4} className="text-center py-12 text-slate-400">
-                      Loading categories...
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#0B3473] mb-2" />
+                      Loading categories from Supabase...
+                    </td>
+                  </tr>
+                ) : categories.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-12 text-slate-400">
+                      No categories found. Click &apos;Add Category&apos; above to create one.
                     </td>
                   </tr>
                 ) : (
@@ -156,15 +247,32 @@ export default function CategoriesManagementPage() {
                     <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-lg bg-blue-50 text-[#0B3473] flex items-center justify-center shrink-0">
-                            <FolderTree className="h-4 w-4" />
-                          </div>
+                          {/* Uploaded Thumbnail Preview */}
+                          {c.thumbnail_url ? (
+                            <div className="relative h-10 w-10 rounded-xl border border-slate-200 bg-white p-1 flex items-center justify-center shrink-0 overflow-hidden shadow-xs">
+                              <img
+                                src={c.thumbnail_url}
+                                alt={c.name}
+                                className="w-full h-full object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#0B3473] border border-blue-100 flex items-center justify-center shrink-0">
+                              <FolderTree className="h-5 w-5" />
+                            </div>
+                          )}
+
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-900">{c.name}</span>
                               <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                                 {c.slug}
                               </span>
+                              {c.thumbnail_url && (
+                                <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded font-semibold">
+                                  Custom Image
+                                </span>
+                              )}
                             </div>
                             {c.description && (
                               <p className="text-[11px] text-slate-500 truncate max-w-md mt-0.5">
@@ -185,8 +293,17 @@ export default function CategoriesManagementPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => handleOpenEdit(c)}
+                            className="h-8 w-8 p-0 text-slate-600 hover:text-[#0B3473] hover:bg-blue-50"
+                            title="Edit Category & Image"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleToggleStatus(c)}
-                            className={`h-8 px-2 ${c.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                            className={`h-8 w-8 p-0 ${c.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
                             title={c.is_active ? 'Deactivate Category' : 'Activate Category'}
                           >
                             <Power className="h-3.5 w-3.5" />
@@ -219,7 +336,7 @@ export default function CategoriesManagementPage() {
           </DialogHeader>
           <form onSubmit={handleCreateCategory} className="space-y-4 pt-2">
             <div>
-              <Label>Category Name</Label>
+              <Label className="text-xs font-semibold text-slate-700">Category Name *</Label>
               <Input
                 placeholder="e.g. Cybersecurity & Ethical Hacking"
                 value={name}
@@ -229,21 +346,22 @@ export default function CategoriesManagementPage() {
               />
             </div>
             <div>
-              <Label>Description</Label>
+              <Label className="text-xs font-semibold text-slate-700">Description</Label>
               <Textarea
                 placeholder="Overview of curricula covered in this domain"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 className="mt-1 text-xs"
-                rows={3}
+                rows={2}
               />
             </div>
             <div>
               <FileUpload
                 accept="image/*"
                 folder="categories"
+                bucket="banners"
                 label="Category Badge / Thumbnail Image"
-                description="Upload custom icon or visual banner for this engineering domain"
+                description="Upload custom icon or image badge (saved to Supabase Storage)"
                 value={thumbnailUrl}
                 onChange={setThumbnailUrl}
               />
@@ -252,8 +370,56 @@ export default function CategoriesManagementPage() {
               <Button type="button" variant="outline" onClick={() => setAddModalOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" disabled={submitting}>
+              <Button type="submit" className="bg-[#0B3473] text-white" disabled={submitting}>
                 {submitting ? 'Creating...' : 'Create Category'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Category Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Category &amp; Image</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4 pt-2">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Category Name *</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+                className="mt-1 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-slate-700">Description</Label>
+              <Textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                className="mt-1 text-xs"
+                rows={2}
+              />
+            </div>
+            <div>
+              <FileUpload
+                accept="image/*"
+                folder="categories"
+                bucket="banners"
+                label="Category Badge / Thumbnail Image"
+                description="Upload or replace the custom image badge (shown on student frontend)"
+                value={editThumbnailUrl}
+                onChange={setEditThumbnailUrl}
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-[#0B3473] text-white" disabled={editSubmitting}>
+                {editSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
             </DialogFooter>
           </form>
@@ -275,4 +441,3 @@ export default function CategoriesManagementPage() {
     </div>
   );
 }
-

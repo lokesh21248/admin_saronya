@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, slug, description, icon } = await request.json();
+    const { name, slug, description, icon, thumbnail_url } = await request.json();
 
     if (!name) {
       return NextResponse.json({ success: false, error: 'Category name is required' }, { status: 400 });
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       slug: generatedSlug,
       description,
       icon,
+      thumbnail_url,
     });
 
     await supabaseDb.auditLogs.log({

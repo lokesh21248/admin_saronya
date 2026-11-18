@@ -197,13 +197,14 @@ export const supabaseDb = {
       return [];
     },
 
-    async create(input: { name: string; slug: string; description?: string; icon?: string }): Promise<Category> {
+    async create(input: { name: string; slug: string; description?: string; icon?: string; thumbnail_url?: string }): Promise<Category> {
       const newCategory: Category = {
         id: `c1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
         name: input.name.trim(),
         slug: input.slug.toLowerCase().trim(),
         description: input.description || '',
         icon: input.icon || 'Code2',
+        thumbnail_url: input.thumbnail_url || undefined,
         is_active: true,
         display_order: mockDb.categories.length + 1,
         created_at: new Date().toISOString(),
@@ -220,6 +221,7 @@ export const supabaseDb = {
             slug: newCategory.slug,
             description: newCategory.description,
             icon: newCategory.icon,
+            thumbnail_url: newCategory.thumbnail_url || null,
             display_order: newCategory.display_order,
             is_active: true,
           })
@@ -247,6 +249,7 @@ export const supabaseDb = {
             ...(updates.slug && { slug: updates.slug.toLowerCase().trim() }),
             ...(updates.description !== undefined && { description: updates.description }),
             ...(updates.icon && { icon: updates.icon }),
+            ...(updates.thumbnail_url !== undefined && { thumbnail_url: updates.thumbnail_url }),
             ...(updates.is_active !== undefined && { is_active: updates.is_active }),
             ...(updates.display_order !== undefined && { display_order: updates.display_order }),
             updated_at: new Date().toISOString(),
