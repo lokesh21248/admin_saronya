@@ -36,11 +36,11 @@ export const supabaseDb = {
           try {
             const { data: qualData } = await client
               .from('academic_qualifications')
-              .select('branch_code');
+              .select('branch_id');
             if (qualData) {
               for (const q of qualData) {
-                if (q.branch_code) {
-                  studentCountsByBranch[q.branch_code] = (studentCountsByBranch[q.branch_code] || 0) + 1;
+                if (q.branch_id) {
+                  studentCountsByBranch[q.branch_id] = (studentCountsByBranch[q.branch_id] || 0) + 1;
                 }
               }
             }
@@ -76,7 +76,7 @@ export const supabaseDb = {
               created_at: b.created_at,
               updated_at: b.updated_at,
               courses_count: courseCountsByBranch[b.id] || 0,
-              students_count: studentCountsByBranch[branchCode] || 0,
+              students_count: studentCountsByBranch[b.id] || 0,
             };
           });
         }
@@ -86,66 +86,112 @@ export const supabaseDb = {
       return [];
     },
 
-    async create(input: { code: string; name: string; description?: string }): Promise<AcademicBranch> {
-      const code = input.code.toUpperCase().trim();
-      const newBranch: AcademicBranch = {
-        id: `b1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
-        code,
-        name: input.name.trim(),
-        description: input.description || '',
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        courses_count: 0,
-        students_count: 0,
-      };
-
+    async getById(id: string): Promise<AcademicBranch | null> {
       try {
         const client = getSupabaseServerClient();
         const { data, error } = await client
           .from('academic_branches')
-          .insert({
-            code: newBranch.code,
-            name: newBranch.name,
-            description: newBranch.description,
-            is_active: true,
-          })
-          .select()
-          .single();
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
 
         if (!error && data) {
-          newBranch.id = data.id;
+          return {
+            id: data.id,
+            code: data.code || data.branch_code || '',
+            name: data.name || data.branch_name || '',
+            description: data.description || '',
+            is_active: data.is_active ?? true,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            courses_count: 0,
+            students_count: 0,
+          };
         }
       } catch (err) {
-        console.warn('Supabase branch insert warning:', err);
+        console.warn('Supabase branch getById warning:', err);
+      }
+      return null;
+    },
+
+    async create(input: { code: string; name: string; description?: string }): Promise<AcademicBranch> {
+      const code = input.code.toUpperCase().trim();
+      const name = input.name.trim();
+      const description = input.description?.trim() || '';
+
+      const client = getSupabaseServerClient();
+      const { data, error } = await client
+        .from('academic_branches')
+        .insert({
+          code,
+          branch_code: code,
+          name,
+          branch_name: name,
+          description,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error || !data) {
+        console.error('Supabase branch insert failed:', error);
+        throw new Error(`Failed to create academic branch: ${error?.message || 'Database insert failed'}`);
       }
 
-      mockDb.branches.push(newBranch);
-      return newBranch;
+      const branch: AcademicBranch = {
+        id: data.id,
+        code: data.code || data.branch_code || code,
+        name: data.name || data.branch_name || name,
+        description: data.description || description,
+        is_active: data.is_active ?? true,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        courses_count: 0,
+        students_count: 0,
+      };
+
+      mockDb.branches.push(branch);
+      return branch;
     },
 
     async update(id: string, updates: Partial<AcademicBranch>): Promise<AcademicBranch | null> {
       try {
         const client = getSupabaseServerClient();
-        await client
+        const payload: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+
+        if (updates.code) {
+          const upper = updates.code.toUpperCase().trim();
+          payload.code = upper;
+          payload.branch_code = upper;
+        }
+        if (updates.name) {
+          const trimmed = updates.name.trim();
+          payload.name = trimmed;
+          payload.branch_name = trimmed;
+        }
+        if (updates.description !== undefined) {
+          payload.description = updates.description;
+        }
+        if (updates.is_active !== undefined) {
+          payload.is_active = updates.is_active;
+        }
+
+        const { error } = await client
           .from('academic_branches')
-          .update({
-            ...(updates.code && { code: updates.code.toUpperCase().trim() }),
-            ...(updates.name && { name: updates.name.trim() }),
-            ...(updates.description !== undefined && { description: updates.description }),
-            ...(updates.is_active !== undefined && { is_active: updates.is_active }),
-            updated_at: new Date().toISOString(),
-          })
+          .update(payload)
           .eq('id', id);
+
+        if (error) {
+          console.error('Supabase branch update error:', error);
+        }
+
+        return await this.getById(id);
       } catch (err) {
         console.warn('Supabase branch update warning:', err);
       }
 
-      const branch = mockDb.branches.find((b) => b.id === id);
-      if (branch) {
-        Object.assign(branch, updates, { updated_at: new Date().toISOString() });
-        return branch;
-      }
       return null;
     },
 
@@ -153,7 +199,12 @@ export const supabaseDb = {
       try {
         const client = getSupabaseServerClient();
         await client.from('course_branch_mappings').delete().eq('branch_id', id);
-        await client.from('academic_branches').delete().eq('id', id);
+        await client.from('course_branch_mapping').delete().eq('branch_id', id);
+        await client.from('academic_qualifications').update({ branch_id: null }).eq('branch_id', id);
+        const { error } = await client.from('academic_branches').delete().eq('id', id);
+        if (error) {
+          console.error('Supabase branch delete error:', error);
+        }
       } catch (err) {
         console.warn('Supabase branch delete warning:', err);
       }
@@ -493,6 +544,9 @@ export const supabaseDb = {
 
           if (mappings.length > 0) {
             await client.from('course_branch_mappings').insert(mappings);
+            try {
+              await client.from('course_branch_mapping').insert(mappings);
+            } catch (ignoreErr) {}
           }
         } catch (branchErr) {
           console.warn('Branch mapping insert failed:', branchErr);
@@ -568,6 +622,10 @@ export const supabaseDb = {
         const rawBranches = updates.branch_ids || updates.selected_branches;
         if (rawBranches) {
           await client.from('course_branch_mappings').delete().eq('course_id', id);
+          try {
+            await client.from('course_branch_mapping').delete().eq('course_id', id);
+          } catch (ignoreErr) {}
+
           if (rawBranches.length > 0) {
             const { data: allBranches } = await client.from('academic_branches').select('id, code');
             const branchMap = new Map((allBranches || []).map((b) => [b.code?.toUpperCase(), b.id]));
@@ -582,6 +640,9 @@ export const supabaseDb = {
 
             if (mappings.length > 0) {
               await client.from('course_branch_mappings').insert(mappings);
+              try {
+                await client.from('course_branch_mapping').insert(mappings);
+              } catch (ignoreErr) {}
             }
           }
         }
