@@ -38,13 +38,16 @@ export async function GET(request: Request) {
       .filter((p) => p.status === 'refunded')
       .reduce((sum, p) => sum + p.amount, 0);
 
+    const capturedCount = payments.filter((p) => p.status === 'captured').length;
+    const pendingCount = payments.filter((p) => p.status === 'created' || p.status === 'authorized').length;
+
     return NextResponse.json({
       success: true,
       summary: {
-        totalRevenue: totalCaptured || 4852900,
-        successfulCount: payments.length || 1420,
+        totalRevenue: totalCaptured,
+        successfulCount: capturedCount,
         refundsTotal: totalRefunded,
-        pendingCount: 0,
+        pendingCount,
       },
       data: payments,
     });

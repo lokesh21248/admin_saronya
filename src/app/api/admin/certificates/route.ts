@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Certificates Management API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
+import { getSupabaseServerClient } from '@/lib/supabase/admin';
+import { supabaseDb } from '@/lib/supabase/db';
 import { mockDb } from '@/lib/db/mock-db';
 
 export async function GET() {
@@ -9,6 +11,22 @@ export async function GET() {
     const adminUser = await getCurrentAdminUser();
     if (!adminUser) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const client = getSupabaseServerClient();
+    const { data, error } = await client
+      .from('certificates')
+      .select('*, student:profiles!certificates_student_id_fkey(id, full_name, email), course:courses(id, title)')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      const certificates = data.map((c: any) => ({
+        ...c,
+        studentName: c.student?.full_name || 'Student',
+        studentEmail: c.student?.email || 'N/A',
+        courseTitle: c.course?.title || 'Course',
+      }));
+      return NextResponse.json({ success: true, data: certificates });
     }
 
     const certificates = mockDb.certificates.map((c) => {
@@ -43,27 +61,46 @@ export async function POST(request: Request) {
 
     const code = `SARV-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
-    const newCert = {
-      id: `cert-${Date.now()}`,
-      certificate_code: code,
-      student_id,
-      course_id,
-      issue_date: new Date().toISOString(),
-      pdf_url: `https://sarvonaya.edu/certificates/${code}.pdf`,
-      is_revoked: false,
-    };
+    const client = getSupabaseServerClient();
+    const { data: inserted, error: insertError } = await client
+      .from('certificates')
+      .insert({
+        certificate_code: code,
+        student_id,
+        course_id,
+        issue_date: new Date().toISOString(),
+        pdf_url: `https://sarvonaya.edu/certificates/${code}.pdf`,
+        is_revoked: false,
+      })
+      .select('*, student:profiles!certificates_student_id_fkey(id, full_name, email), course:courses(id, title)')
+      .single();
+
+    const newCert = inserted
+      ? {
+          ...inserted,
+          studentName: inserted.student?.full_name || 'Student',
+          studentEmail: inserted.student?.email || 'N/A',
+          courseTitle: inserted.course?.title || 'Course',
+        }
+      : {
+          id: `cert-${Date.now()}`,
+          certificate_code: code,
+          student_id,
+          course_id,
+          issue_date: new Date().toISOString(),
+          pdf_url: `https://sarvonaya.edu/certificates/${code}.pdf`,
+          is_revoked: false,
+        };
 
     mockDb.certificates.unshift(newCert);
 
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: 'CERTIFICATE_ISSUED',
-      entity_type: 'certificate',
-      entity_id: newCert.certificate_code,
+      target_type: 'certificate',
+      target_id: newCert.certificate_code || newCert.id,
       details: { student_id, course_id, code },
-      created_at: new Date().toISOString(),
     });
 
     return NextResponse.json({ success: true, data: newCert });

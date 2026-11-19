@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Revenue Report API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
+import { supabaseDb } from '@/lib/supabase/db';
 
 export async function GET(request: Request) {
   try {
@@ -13,14 +14,37 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const format = searchParams.get('format');
 
-    const monthlyBreakdown = [
-      { month: 'Jun 2026', coursesRevenue: 280000, subscriptionsRevenue: 190000, total: 470000 },
-      { month: 'Jul 2026', coursesRevenue: 340000, subscriptionsRevenue: 220000, total: 560000 },
-      { month: 'Aug 2026', coursesRevenue: 410000, subscriptionsRevenue: 310000, total: 720000 },
-      { month: 'Sep 2026', coursesRevenue: 520000, subscriptionsRevenue: 390000, total: 910000 },
-      { month: 'Oct 2026', coursesRevenue: 610000, subscriptionsRevenue: 480000, total: 1090000 },
-      { month: 'Nov 2026', coursesRevenue: 680000, subscriptionsRevenue: 520000, total: 1200000 },
-    ];
+    const payments = await supabaseDb.payments.list();
+    const captured = payments.filter((p) => p.status === 'captured');
+
+    let monthlyBreakdown: { month: string; coursesRevenue: number; subscriptionsRevenue: number; total: number }[] = [];
+
+    if (captured.length > 0) {
+      const grouped: Record<string, { coursesRevenue: number; subscriptionsRevenue: number; total: number }> = {};
+      for (const p of captured) {
+        const monthKey = new Date(p.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        if (!grouped[monthKey]) {
+          grouped[monthKey] = { coursesRevenue: 0, subscriptionsRevenue: 0, total: 0 };
+        }
+        const amt = Number(p.amount) || 0;
+        const isSub = (p as any).order?.order_type === 'subscription';
+        if (isSub) {
+          grouped[monthKey].subscriptionsRevenue += amt;
+        } else {
+          grouped[monthKey].coursesRevenue += amt;
+        }
+        grouped[monthKey].total += amt;
+      }
+      monthlyBreakdown = Object.entries(grouped).map(([month, val]) => ({
+        month,
+        ...val,
+      }));
+    } else {
+      const currentMonth = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      monthlyBreakdown = [
+        { month: currentMonth, coursesRevenue: 0, subscriptionsRevenue: 0, total: 0 },
+      ];
+    }
 
     if (format === 'csv') {
       const csv = [

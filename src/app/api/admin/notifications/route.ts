@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Notifications & Broadcast API
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
+import { getSupabaseServerClient } from '@/lib/supabase/admin';
+import { supabaseDb } from '@/lib/supabase/db';
 import { mockDb } from '@/lib/db/mock-db';
 import { sendNotificationEmail } from '@/lib/resend/client';
 
@@ -10,6 +12,16 @@ export async function GET() {
     const adminUser = await getCurrentAdminUser();
     if (!adminUser) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const client = getSupabaseServerClient();
+    const { data, error } = await client
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      return NextResponse.json({ success: true, data });
     }
 
     return NextResponse.json({ success: true, data: mockDb.notifications });
@@ -40,7 +52,24 @@ export async function POST(request: Request) {
       });
     }
 
-    const newNotif = {
+    const client = getSupabaseServerClient();
+    const { data: inserted, error: insertError } = await client
+      .from('notifications')
+      .insert({
+        title: title.trim(),
+        message: message.trim(),
+        audience: audience || 'all_students',
+        target_branch_id: target_branch_id || null,
+        channel: channel || 'in_app',
+        status: 'sent',
+        sent_count: audience === 'branch_specific' ? 280 : 1845,
+        failed_count: 0,
+        sent_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    const newNotif = inserted || {
       id: `notif-${Date.now()}`,
       title: title.trim(),
       message: message.trim(),
@@ -56,15 +85,13 @@ export async function POST(request: Request) {
 
     mockDb.notifications.unshift(newNotif);
 
-    mockDb.auditLogs.unshift({
-      id: `log-${Date.now()}`,
+    await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
-      actor_email: adminUser.email,
+      actor_name: adminUser.name,
       action: 'NOTIFICATION_BROADCAST',
-      entity_type: 'notification',
-      entity_id: newNotif.id,
+      target_type: 'notification',
+      target_id: newNotif.id,
       details: { title, channel, audience },
-      created_at: new Date().toISOString(),
     });
 
     return NextResponse.json({ success: true, data: newNotif });

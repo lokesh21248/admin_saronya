@@ -799,6 +799,67 @@ export const supabaseDb = {
       }
       return mockDb.profiles;
     },
+
+    async create(input: { full_name: string; email: string; phone?: string; bio?: string; avatar_url?: string }): Promise<Profile> {
+      try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+          .from('profiles')
+          .insert({
+            full_name: input.full_name.trim(),
+            email: input.email.trim().toLowerCase(),
+            phone: input.phone || null,
+            bio: input.bio || null,
+            avatar_url: input.avatar_url || null,
+            status: 'active',
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          try {
+            await client.from('user_roles').insert({
+              user_id: data.id,
+              role: 'instructor',
+            });
+          } catch (rErr) {}
+
+          const prof: Profile = {
+            id: data.id,
+            email: data.email,
+            full_name: data.full_name,
+            phone: data.phone || '',
+            avatar_url: data.avatar_url || '/placeholders/avatar-placeholder.svg',
+            bio: data.bio || '',
+            status: data.status || 'active',
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            roles: ['instructor'],
+            assigned_courses_count: 0,
+          };
+          mockDb.profiles.push(prof);
+          return prof;
+        }
+      } catch (err) {
+        console.warn('Supabase instructor create error:', err);
+      }
+
+      const fallback: Profile = {
+        id: `a1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
+        full_name: input.full_name.trim(),
+        email: input.email.trim().toLowerCase(),
+        phone: input.phone || '',
+        bio: input.bio || '',
+        avatar_url: input.avatar_url || '/placeholders/avatar-placeholder.svg',
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        roles: ['instructor'],
+        assigned_courses_count: 0,
+      };
+      mockDb.profiles.push(fallback);
+      return fallback;
+    },
   },
 
   // 6. ENROLLMENTS
@@ -835,7 +896,47 @@ export const supabaseDb = {
     },
 
     async grant(studentId: string, courseId: string, reason: string): Promise<Enrollment> {
-      const newEnrollment: Enrollment = {
+      try {
+        const client = getSupabaseServerClient();
+        const { data, error } = await client
+          .from('enrollments')
+          .insert({
+            student_id: studentId,
+            course_id: courseId,
+            access_type: 'complimentary',
+            status: 'active',
+            grant_reason: reason,
+            enrolled_at: new Date().toISOString(),
+          })
+          .select(`
+            *,
+            course:courses(*),
+            student:profiles(*)
+          `)
+          .single();
+
+        if (!error && data) {
+          const row: Enrollment = {
+            id: data.id,
+            student_id: data.student_id,
+            course_id: data.course_id,
+            access_type: data.access_type || 'complimentary',
+            status: data.status || 'active',
+            progress_percentage: 0,
+            enrolled_at: data.enrolled_at,
+            course: data.course,
+            student: data.student,
+          };
+          mockDb.enrollments.unshift(row);
+          return row;
+        } else if (error) {
+          console.warn('Supabase enrollment insert warning:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase enrollment grant error:', err);
+      }
+
+      const fallback: Enrollment = {
         id: `e2000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
         student_id: studentId,
         course_id: courseId,
@@ -844,26 +945,8 @@ export const supabaseDb = {
         progress_percentage: 0,
         enrolled_at: new Date().toISOString(),
       };
-
-      try {
-        const client = getSupabaseServerClient();
-        const { data } = await client.from('enrollments').insert({
-          student_id: studentId,
-          course_id: courseId,
-          access_type: 'complimentary',
-          status: 'active',
-          progress_percentage: 0,
-        }).select().single();
-
-        if (data) {
-          newEnrollment.id = data.id;
-        }
-      } catch (err) {
-        console.warn('Supabase enrollment insert warning:', err);
-      }
-
-      mockDb.enrollments.unshift(newEnrollment);
-      return newEnrollment;
+      mockDb.enrollments.unshift(fallback);
+      return fallback;
     },
 
     async revoke(enrollmentId: string): Promise<boolean> {

@@ -2,26 +2,37 @@ export const dynamic = 'force-dynamic';
 // SARVONAYA Mux Video Assets API (GET & POST)
 import { NextResponse } from 'next/server';
 import { getCurrentAdminUser } from '@/lib/clerk/auth';
+import { getSupabaseServerClient } from '@/lib/supabase/admin';
 import { mockDb } from '@/lib/db/mock-db';
 import { isMuxConfigured, listMuxAssets, deleteMuxAsset } from '@/lib/mux/client';
 import { applyLessonVideoUpdate, findLessonWithCourse } from '@/lib/mux/lesson-video';
 import type { Lesson } from '@/types/database';
 
-function courseTitleFor(lesson: Lesson | undefined): string {
-  if (!lesson) return 'Not linked to a lesson';
-  const section = mockDb.sections.find((s) => s.id === lesson.section_id);
-  return mockDb.courses.find((c) => c.id === section?.course_id)?.title ?? 'Unassigned course';
-}
+async function getLiveLessons(): Promise<any[]> {
+  try {
+    const client = getSupabaseServerClient();
+    const { data, error } = await client
+      .from('lessons')
+      .select('*, section:course_sections(id, title, course:courses(id, title))')
+      .order('sort_order', { ascending: true });
 
-function lessonOptions() {
-  return mockDb.lessons
-    .filter((l) => l.lesson_type === 'video')
-    .map((l) => ({
-      id: l.id,
-      title: l.title,
-      courseTitle: courseTitleFor(l),
-      hasVideo: Boolean(l.mux_asset_id),
-    }));
+    if (!error && data && data.length > 0) {
+      return data.map((l: any) => ({
+        ...l,
+        courseTitle: l.section?.course?.title ?? 'Unassigned course',
+      }));
+    }
+  } catch (err) {
+    console.warn('Supabase lessons fetch warning:', err);
+  }
+
+  return mockDb.lessons.map((l) => {
+    const section = mockDb.sections.find((s) => s.id === l.section_id);
+    return {
+      ...l,
+      courseTitle: mockDb.courses.find((c) => c.id === section?.course_id)?.title ?? 'Unassigned course',
+    };
+  });
 }
 
 export async function GET() {
@@ -31,15 +42,25 @@ export async function GET() {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    const liveLessons = await getLiveLessons();
+    const lessonOptions = liveLessons
+      .filter((l) => l.lesson_type === 'video')
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        courseTitle: l.courseTitle || 'Unassigned course',
+        hasVideo: Boolean(l.mux_asset_id),
+      }));
+
     const muxConfigured = isMuxConfigured();
     let warning: string | undefined;
 
     if (muxConfigured) {
       try {
         const assets = await listMuxAssets(50);
-        const lessonById = new Map(mockDb.lessons.map((l) => [l.id, l]));
+        const lessonById = new Map(liveLessons.map((l) => [l.id, l]));
         const lessonByAsset = new Map(
-          mockDb.lessons.filter((l) => l.mux_asset_id).map((l) => [l.mux_asset_id as string, l])
+          liveLessons.filter((l) => l.mux_asset_id).map((l) => [l.mux_asset_id as string, l])
         );
 
         const data = assets.map((asset) => {
@@ -52,7 +73,7 @@ export async function GET() {
             id: asset.id,
             title: lesson ? `${lesson.title}${superseded ? ' (replaced upload)' : ''}` : 'Unlinked Mux asset',
             lessonId: lesson?.id ?? null,
-            courseTitle: courseTitleFor(lesson),
+            courseTitle: lesson?.courseTitle || 'Not linked to a lesson',
             muxAssetId: asset.id,
             playbackId: playback?.id ?? null,
             status: asset.status === 'preparing' ? 'processing' : asset.status,
@@ -70,7 +91,7 @@ export async function GET() {
           muxConfigured,
           total: data.length,
           data,
-          lessons: lessonOptions(),
+          lessons: lessonOptions,
         });
       } catch (err) {
         console.warn('Mux asset listing failed, falling back to stored lesson videos:', err);
@@ -78,18 +99,18 @@ export async function GET() {
       }
     }
 
-    // Fallback: whatever the lessons themselves record. No ids are invented for lessons without a video.
-    const data = mockDb.lessons
+    // Fallback: whatever the lessons themselves record.
+    const data = liveLessons
       .filter((l) => l.lesson_type === 'video' && l.mux_asset_id)
       .map((l) => ({
         id: l.id,
         title: l.title,
         lessonId: l.id,
-        courseTitle: courseTitleFor(l),
+        courseTitle: l.courseTitle || 'Not linked to a lesson',
         muxAssetId: l.mux_asset_id ?? null,
         playbackId: l.mux_playback_id ?? null,
         status: l.video_status ?? 'ready',
-        durationSeconds: l.video_duration ?? l.duration_minutes * 60,
+        durationSeconds: l.video_duration ?? (l.duration_minutes || 15) * 60,
         resolution: l.video_resolution ?? '—',
         isSignedPolicy: true,
         createdAt: l.created_at,
@@ -101,7 +122,7 @@ export async function GET() {
       warning,
       total: data.length,
       data,
-      lessons: lessonOptions(),
+      lessons: lessonOptions,
     });
   } catch (error) {
     console.error('Failed to fetch video assets:', error);

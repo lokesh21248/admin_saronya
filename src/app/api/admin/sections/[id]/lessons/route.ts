@@ -63,6 +63,11 @@ export async function POST(
       return NextResponse.json({ success: true, data: inserted });
     }
 
+    if (error) {
+      console.error('Lesson creation database error:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
     const fallbackLesson = {
       id: `les-${Date.now()}`,
       section_id: id,

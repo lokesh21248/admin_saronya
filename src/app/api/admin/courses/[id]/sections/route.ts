@@ -18,7 +18,7 @@ export async function GET(
       .eq('course_id', id)
       .order('sort_order', { ascending: true });
 
-    if (!error && dbSections && dbSections.length > 0) {
+    if (!error && dbSections) {
       return NextResponse.json({ success: true, data: dbSections });
     }
 
@@ -66,12 +66,17 @@ export async function POST(
         sort_order: sortOrder,
         is_published: true,
       })
-      .select()
+      .select('*, lessons(*)')
       .single();
 
     if (!error && inserted) {
       mockDb.sections.push(inserted);
       return NextResponse.json({ success: true, data: inserted });
+    }
+
+    if (error) {
+      console.error('Section creation database error:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     const fallbackSection = {

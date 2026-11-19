@@ -36,20 +36,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Full name and email are required' }, { status: 400 });
     }
 
-    const newInstructor = {
-      id: `a1000000-0000-0000-0000-${Math.random().toString(16).substring(2, 14)}`,
+    const newInstructor = await supabaseDb.instructors.create({
       full_name: full_name.trim(),
       email: email.trim().toLowerCase(),
       phone: phone || '',
       bio: bio || '',
       avatar_url: avatar_url || '/placeholders/avatar-placeholder.svg',
-      status: 'active' as const,
-      roles: ['instructor' as const],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    mockDb.profiles.push(newInstructor);
+    });
 
     await supabaseDb.auditLogs.log({
       actor_id: adminUser.id,
